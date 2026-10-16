@@ -12,11 +12,11 @@ export default function TelemetryPill() {
     <div className="relative">
       <button className="pill cursor-pointer font-mono hover:border-accent" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Token & cost telemetry">
         <Gauge className="h-3 w-3" />
-        {fmtTokens(session.inputTokens + session.outputTokens)} tok · {fmtUSD(session.costUSD)}
-        {lifetime && <span className="text-muted">/ {fmtUSD(lifetime.totalCostUSD)}</span>}
+        <span className="hidden sm:inline">{fmtTokens(session.inputTokens + session.outputTokens)} tok ·</span> {fmtUSD(session.costUSD)}
+        {lifetime && <span className="hidden text-muted sm:inline">/ {fmtUSD(lifetime.totalCostUSD)}</span>}
       </button>
       {open && (
-        <div className="card absolute right-0 top-8 z-40 w-72 p-3 text-sm" onMouseLeave={() => setOpen(false)}>
+        <div className="card absolute right-0 top-8 z-40 w-[min(18rem,calc(100vw-1rem))] p-3 text-sm" onMouseLeave={() => setOpen(false)}>
           <table className="w-full font-mono text-xs">
             <thead>
               <tr className="text-muted">

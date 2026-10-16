@@ -8,7 +8,7 @@ import Tab4Quests from './Tab4Quests.jsx';
 import Tab5DiaryCodex from './Tab5DiaryCodex.jsx';
 import Tab6Engine from './Tab6Engine.jsx';
 
-const TABS = [
+export const TABS = [
   { id: 1, label: 'Character', icon: User, Component: Tab1Character },
   { id: 2, label: 'Inventory', icon: Backpack, Component: Tab2Inventory },
   { id: 3, label: 'Map', icon: Map, Component: Tab3MapFactions },
@@ -17,16 +17,27 @@ const TABS = [
   { id: 6, label: 'Engine', icon: Cpu, Component: Tab6Engine },
 ];
 
+/** Quests can be switched off per campaign; the Quests tab is hidden then (other tabs keep their numbers). */
+export function questsEnabled(campaign) {
+  return campaign?.meta?.questsEnabled !== false;
+}
+
+export function visibleTabs(campaign) {
+  return TABS.filter((t) => t.id !== 4 || questsEnabled(campaign));
+}
+
 function isTypingTarget(el) {
   if (!el) return false;
   const tag = el.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
 }
 
-/** 6-tab Command Sidebar. Keys 1–6 switch tabs when not typing in a field. */
+/** 6-tab Command Sidebar (desktop). Keys 1–6 switch tabs when not typing in a field. */
 export default function CommandSidebar() {
   const tab = useGameStore((s) => s.sidebarTab);
   const setTab = useGameStore((s) => s.setSidebarTab);
+  const campaign = useGameStore((s) => s.campaign);
+  const tabs = visibleTabs(campaign);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -35,7 +46,7 @@ export default function CommandSidebar() {
       const st = useGameStore.getState();
       if (st.rollPrompt || st.modal) return;
       const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= 6) {
+      if (Number.isInteger(n) && visibleTabs(st.campaign).some((t) => t.id === n)) {
         e.preventDefault();
         setTab(n);
       }
@@ -44,19 +55,19 @@ export default function CommandSidebar() {
     return () => window.removeEventListener('keydown', onKey);
   }, [setTab]);
 
-  const active = TABS.find((t) => t.id === tab) || TABS[0];
+  const active = tabs.find((t) => t.id === tab) || tabs[0];
   const { Component } = active;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <nav className="grid grid-cols-6 border-b-theme border-line/40 bg-surface/60" role="tablist" aria-label="Command Sidebar">
-        {TABS.map(({ id, label, icon: Icon }) => (
+      <nav className="flex border-b-theme border-line/40 bg-surface/60" role="tablist" aria-label="Command Sidebar">
+        {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             role="tab"
-            aria-selected={tab === id}
+            aria-selected={active.id === id}
             onClick={() => setTab(id)}
-            className={`flex flex-col items-center gap-0.5 border-b-2 py-2 text-[11px] font-semibold transition ${tab === id ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-ink'}`}
+            className={`flex flex-1 flex-col items-center gap-0.5 border-b-2 py-2 text-[11px] font-semibold transition ${active.id === id ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-ink'}`}
             title={`${label} (${id})`}
           >
             <Icon className="h-4 w-4" />

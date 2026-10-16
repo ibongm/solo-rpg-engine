@@ -10,7 +10,7 @@ export default function CampfireDowntime() {
   const campaign = useGameStore((s) => s.campaign);
   const character = useGameStore((s) => s.character);
   const close = useGameStore((s) => s.closeDrawer);
-  const setSidebarTab = useGameStore((s) => s.setSidebarTab);
+  const openTab = useGameStore((s) => s.openTab);
   const busy = useGameStore((s) => s.busy);
   const [topic, setTopic] = useState('');
   const [safeName, setSafeName] = useState('');
@@ -24,8 +24,8 @@ export default function CampfireDowntime() {
   const strict = (campaign.meta.rulesStrictness ?? 5) >= STRICT_RATIONS;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-4 sm:items-center no-print" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="card max-h-[90vh] w-full max-w-3xl animate-fade-in overflow-y-auto" role="dialog" aria-label="Campfire">
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center sm:p-4 no-print" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="card max-h-[90dvh] w-full max-w-3xl animate-fade-in overflow-y-auto rounded-b-none sm:rounded-b-theme" role="dialog" aria-label="Campfire">
         <header className="flex items-center justify-between border-b-theme border-line/40 px-5 py-3">
           <h2 className="flex items-center gap-2 text-lg font-bold">
             <Tent className="h-5 w-5 text-accent-2" /> Make Camp {buffs.atSafehouse && <span className="pill">at {sh.name}</span>}
@@ -60,7 +60,7 @@ export default function CampfireDowntime() {
             <button
               className="btn w-full justify-start"
               onClick={() => {
-                setSidebarTab(2);
+                openTab(2);
                 close();
               }}
             >

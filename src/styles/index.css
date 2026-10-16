@@ -43,6 +43,15 @@
   }
 }
 
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ── Print / PDF view ─────────────────────────────────────────── */
 .print-only {
   display: none;

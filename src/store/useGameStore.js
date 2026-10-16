@@ -33,6 +33,15 @@ export const useGameStore = create(
       setHubTab: (hubTab) => set({ hubTab }),
       sidebarTab: 1,
       setSidebarTab: (sidebarTab) => set({ sidebarTab }),
+      // Phone layout: which bottom sheet is open — null, 'vitals', or a tab id 1–6.
+      mobileSheet: null,
+      setMobileSheet: (mobileSheet) => set({ mobileSheet }),
+      /** Shows a sidebar tab: switches it on desktop, and also slides it up as a sheet on phones. */
+      openTab: (sidebarTab) =>
+        set({
+          sidebarTab,
+          mobileSheet: typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches ? null : sidebarTab,
+        }),
 
       // ── Theme ───────────────────────────────────────────────
       theme: 'fantasy',

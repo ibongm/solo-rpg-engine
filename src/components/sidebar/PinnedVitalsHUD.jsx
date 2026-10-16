@@ -14,7 +14,7 @@ function weatherIcon(type = '') {
 }
 
 /** Always-visible HP, AC, conditions, Living World Clock and weather modifier pill. */
-export default function PinnedVitalsHUD() {
+export default function PinnedVitalsHUD({ bare = false }) {
   const character = useGameStore((s) => s.character);
   const campaign = useGameStore((s) => s.campaign);
   const v = character.vitals;
@@ -27,7 +27,7 @@ export default function PinnedVitalsHUD() {
   const ds = v.deathSaves || { successes: 0, failures: 0 };
 
   return (
-    <div className="border-b-theme border-line/40 bg-surface px-4 py-3">
+    <div className={bare ? 'py-1' : 'border-b-theme border-line/40 bg-surface px-4 py-3'}>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate font-heading text-base font-bold">{character.name}</div>

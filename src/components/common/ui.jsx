@@ -21,16 +21,16 @@ export function Modal({ title, onClose, children, wide = false, footer = null, i
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 no-print" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 no-print sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div
         ref={ref}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
-        className={`card flex max-h-[92vh] w-full animate-fade-in flex-col outline-none ${wide ? 'max-w-5xl' : 'max-w-xl'}`}
+        className={`card flex max-h-[92dvh] w-full animate-fade-in flex-col rounded-b-none outline-none sm:rounded-b-theme ${wide ? 'max-w-5xl' : 'max-w-xl'}`}
       >
-        <div className="flex items-center justify-between gap-3 border-b-theme border-line/40 px-5 py-3">
+        <div className="flex items-center justify-between gap-3 border-b-theme border-line/40 px-4 py-3 sm:px-5">
           <h2 className="flex items-center gap-2 text-lg font-bold">
             {icon}
             {title}
@@ -41,8 +41,8 @@ export function Modal({ title, onClose, children, wide = false, footer = null, i
             </button>
           )}
         </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t-theme border-line/40 px-5 py-3">{footer}</div>}
+        <div className="overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
+        {footer && <div className="flex flex-wrap justify-end gap-2 border-t-theme border-line/40 px-4 py-3 sm:px-5" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>{footer}</div>}
       </div>
     </div>
   );

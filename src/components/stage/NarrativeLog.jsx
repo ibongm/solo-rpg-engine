@@ -19,7 +19,7 @@ export default function NarrativeLog() {
   const busy = useGameStore((s) => s.busy);
   const busyLabel = useGameStore((s) => s.busyLabel);
   const diary = useGameStore((s) => s.diary);
-  const setSidebarTab = useGameStore((s) => s.setSidebarTab);
+  const openTab = useGameStore((s) => s.openTab);
   const endRef = useRef(null);
 
   const ordered = useMemo(() => turns.slice().sort((a, b) => (a.index ?? 0) - (b.index ?? 0)), [turns]);
@@ -30,11 +30,11 @@ export default function NarrativeLog() {
   }, [ordered.length, busy, lastTurn?.imageUrl]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-live="polite">
+    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4" aria-live="polite">
       {diary.length > 0 && (
-        <button className="card-inset mb-4 flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted hover:text-ink" onClick={() => setSidebarTab(5)}>
+        <button className="card-inset mb-4 flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-muted hover:text-ink" onClick={() => openTab(5)}>
           <BookMarked className="h-4 w-4" />
-          {diary.length} earlier chapter{diary.length > 1 ? 's' : ''} recorded in the Campaign Diary (press 5).
+          {diary.length} earlier chapter{diary.length > 1 ? 's' : ''} recorded in the Campaign Diary.
         </button>
       )}
       <div className="mx-auto max-w-3xl space-y-5">

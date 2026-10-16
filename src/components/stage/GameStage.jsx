@@ -16,6 +16,8 @@ import CampfireDowntime from './CampfireDowntime.jsx';
 import TavernMinigameModal from './TavernMinigameModal.jsx';
 import CommandSidebar from '../sidebar/CommandSidebar.jsx';
 import PinnedVitalsHUD from '../sidebar/PinnedVitalsHUD.jsx';
+import MobileDock from '../sidebar/MobileDock.jsx';
+import { useIsDesktop } from '../common/useMediaQuery.js';
 
 export default function GameStage() {
   const user = useGameStore((s) => s.user);
@@ -35,6 +37,14 @@ export default function GameStage() {
   const archivistRunning = useGameStore((s) => s.archivistRunning);
   const gameError = useGameStore((s) => s.gameError);
   const charId = campaign?.meta?.activeCharId;
+  const isDesktop = useIsDesktop();
+  const setMobileSheet = useGameStore((s) => s.setMobileSheet);
+
+  // Close any phone sheet when leaving the game or widening to desktop.
+  useEffect(() => {
+    if (isDesktop) setMobileSheet(null);
+  }, [isDesktop, setMobileSheet]);
+  useEffect(() => () => setMobileSheet(null), [setMobileSheet]);
 
   // Live Firestore mirrors
   useEffect(() => {
@@ -90,23 +100,23 @@ export default function GameStage() {
   const queueForThis = retryQueue && retryQueue.campaignId === campaign.id;
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between gap-3 border-b-theme border-line/40 bg-surface/80 px-4 py-2 backdrop-blur no-print">
-        <div className="flex min-w-0 items-center gap-3">
+    <div className="flex h-[100dvh] flex-col">
+      <header className="flex items-center justify-between gap-2 border-b-theme border-line/40 bg-surface/80 px-2 py-1.5 backdrop-blur no-print sm:gap-3 sm:px-4 sm:py-2">
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
           <button className="btn-ghost" onClick={exitGame} title="Back to the Guildhall">
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <h1 className="truncate text-lg font-bold">{campaign.meta.title}</h1>
+          <h1 className="truncate text-base font-bold sm:text-lg">{campaign.meta.title}</h1>
           {locked && (
             <span className={`pill ${campaign.meta.status === 'fallen' ? 'border-danger text-danger' : 'border-info text-info'}`}>
               {campaign.meta.status === 'fallen' ? <Skull className="h-3 w-3" /> : <Lock className="h-3 w-3" />} {campaign.meta.status}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {archivistRunning && (
             <span className="pill animate-pulse" title="Condensing the oldest turns into the Campaign Diary">
-              <BookMarked className="h-3 w-3" /> Archivist writing…
+              <BookMarked className="h-3 w-3" /> <span className="hidden sm:inline">Archivist writing…</span>
             </span>
           )}
           <TelemetryPill />
@@ -115,11 +125,11 @@ export default function GameStage() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[3fr_2fr]">
         {/* Left / Center Stage — 60% */}
-        <main className="flex min-h-0 flex-col border-r-theme border-line/30">
+        <main className="flex min-h-0 flex-col lg:border-r-theme lg:border-line/30">
           {campaign.combat?.inCombat && <EnemyTacticalBar />}
           <NarrativeLog />
           {queueForThis && !busy && (
-            <div className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-theme border-theme border-warning bg-warning/10 px-3 py-2 text-sm">
+            <div className="mx-2 mb-2 flex flex-wrap items-center gap-2 rounded-theme sm:mx-4 border-theme border-warning bg-warning/10 px-3 py-2 text-sm">
               <AlertTriangle className="h-4 w-4 text-warning" />
               <span className="flex-1">
                 {retryQueue.status === 'failed' ? retryQueue.error || 'The last turn did not complete.' : 'A turn was interrupted before it finished.'} Your action{retryQueue.roll ? ' and dice roll are' : ' is'} saved locally.
@@ -136,7 +146,7 @@ export default function GameStage() {
           )}
           {!locked && campaign.combat?.inCombat && <TacticalActionBar />}
           {locked ? (
-            <div className="m-4 card-inset p-4 text-center text-sm text-muted">
+            <div className="m-2 card-inset p-4 sm:m-4 text-center text-sm text-muted">
               {campaign.meta.status === 'fallen' ? 'This campaign ended in permadeath. The chronicle is preserved in the Hall of Fame.' : 'This campaign is complete. It remains readable here.'}
             </div>
           ) : (
@@ -145,11 +155,16 @@ export default function GameStage() {
         </main>
 
         {/* Right Command Sidebar — 40% */}
-        <aside className="flex min-h-0 flex-col bg-surface/40 no-print">
-          <PinnedVitalsHUD />
-          <CommandSidebar />
-        </aside>
+        {isDesktop && (
+          <aside className="flex min-h-0 flex-col bg-surface/40 no-print">
+            <PinnedVitalsHUD />
+            <CommandSidebar />
+          </aside>
+        )}
       </div>
+
+      {/* Phone layout: compact vitals strip + bottom tabs that open on tap */}
+      {!isDesktop && <MobileDock />}
 
       {!locked && drawer === 'merchant' && <MerchantDrawer />}
       {!locked && drawer === 'campfire' && <CampfireDowntime />}
