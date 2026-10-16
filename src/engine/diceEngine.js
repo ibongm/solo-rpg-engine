@@ -1,0 +1,409 @@
+/**
+ * Deterministic JS Dice Engine — the Rules Lawyer.
+ * total = d20 + statMod + proficiency + weatherMod + itemMod (+ perkMod)
+ * Every component is returned in a visible breakdown. The LLM never rolls.
+ */
+import { ABILITIES, ABILITY_LABELS, SKILLS, SKILL_KEYS, skillLabel } from '../config/genreSkins.js';
+import { abilityMod, proficiencyBonus, perkModifier } from './progression.js';
+import { rollDie, getDefaultRng } from './rng.js';
+
+// ── Dice expressions ─────────────────────────────────────────────
+
+const DICE_RE = /^\s*(\d*)\s*d\s*(\d+)\s*(?:([+-])\s*(\d+))?\s*$/i;
+
+/** Parses "2d6+3", "d20", "1d8 - 1", or a flat number "4". Returns null if invalid. */
+export function parseDice(expr) {
+  if (expr === null || expr === undefined) return null;
+  const str = String(expr).trim();
+  if (/^-?\d+$/.test(str)) return { count: 0, sides: 0, bonus: parseInt(str, 10) };
+  const m = DICE_RE.exec(str);
+  if (!m) return null;
+  const count = m[1] === '' ? 1 : parseInt(m[1], 10);
+  const sides = parseInt(m[2], 10);
+  if (count < 1 || count > 100 || sides < 2 || sides > 1000) return null;
+  const bonus = m[3] ? (m[3] === '-' ? -1 : 1) * parseInt(m[4], 10) : 0;
+  return { count, sides, bonus };
+}
+
+/**
+ * Rolls a dice expression. `critical` doubles the dice count (5e crit).
+ * Returns { expr, rolls, bonus, total }.
+ */
+export function rollDice(expr, { critical = false, rng = getDefaultRng() } = {}) {
+  const parsed = parseDice(expr);
+  if (!parsed) throw new Error(`Invalid dice expression: ${expr}`);
+  const count = critical ? parsed.count * 2 : parsed.count;
+  const rolls = [];
+  for (let i = 0; i < count; i++) rolls.push(rollDie(parsed.sides, rng));
+  const total = Math.max(0, rolls.reduce((a, b) => a + b, 0) + parsed.bonus);
+  return { expr: String(expr), rolls, bonus: parsed.bonus, total, critical };
+}
+
+/** Totals manual physical dice for an expression: values are the faces the player rolled. */
+export function totalManualDice(expr, faces, { critical = false } = {}) {
+  const parsed = parseDice(expr);
+  if (!parsed) throw new Error(`Invalid dice expression: ${expr}`);
+  const count = critical ? parsed.count * 2 : parsed.count;
+  if (faces.length !== count) throw new Error(`Expected ${count} dice for ${expr}${critical ? ' (critical)' : ''}.`);
+  for (const f of faces) {
+    if (!Number.isInteger(f) || f < 1 || f > parsed.sides) throw new Error(`Each die must be 1–${parsed.sides}.`);
+  }
+  const total = Math.max(0, faces.reduce((a, b) => a + b, 0) + parsed.bonus);
+  return { expr: String(expr), rolls: faces.slice(), bonus: parsed.bonus, total, critical };
+}
+
+// ── Modifier sources ─────────────────────────────────────────────
+
+export function equippedItems(character) {
+  return (character?.inventory || []).filter((i) => i.equipped);
+}
+
+/** Sums a statModifier key across equipped items. */
+export function itemModifier(character, key) {
+  let total = 0;
+  for (const item of equippedItems(character)) {
+    const v = item.statModifiers?.[key];
+    if (typeof v === 'number') total += v;
+  }
+  return total;
+}
+
+/** Effective ability score including equipped item and perk bonuses. */
+export function effectiveAbility(character, ability) {
+  return (character?.stats?.[ability] ?? 10) + itemModifier(character, ability) + perkModifier(character, ability);
+}
+
+export function effectiveAc(character) {
+  return (character?.vitals?.ac ?? 10) + itemModifier(character, 'ac') + perkModifier(character, 'ac');
+}
+
+export function effectiveMaxHp(character) {
+  return (character?.vitals?.maxHp ?? 1) + perkModifier(character, 'maxHp');
+}
+
+export function effectiveSpeed(character) {
+  return (character?.vitals?.speed ?? 30) + perkModifier(character, 'speed');
+}
+
+export function equippedWeapon(character) {
+  return equippedItems(character).find((i) => i.type === 'weapon') || null;
+}
+
+const WEATHER_KEYWORDS = {
+  ranged: ['ranged', 'missile', 'shooting', 'firearm', 'gun', 'archery'],
+  melee: ['melee'],
+  perception: ['perception', 'sight', 'visibility', 'spot'],
+  stealth: ['stealth', 'sneak', 'hide'],
+  survival: ['survival', 'tracking', 'navigation', 'scavenging'],
+  athletics: ['athletics', 'climb', 'swim'],
+  acrobatics: ['acrobatics', 'footing', 'balance'],
+  all: ['all checks', 'all rolls', 'everything', 'all ability', 'all attack'],
+};
+
+/**
+ * Determines which rolls the current weather affects.
+ * Uses an explicit `affects` list if present, otherwise parses `mechanicalEffect` text.
+ */
+export function weatherAffects(weather) {
+  if (!weather) return [];
+  if (Array.isArray(weather.affects) && weather.affects.length) return weather.affects;
+  const text = String(weather.mechanicalEffect || '').toLowerCase();
+  const out = [];
+  for (const [key, words] of Object.entries(WEATHER_KEYWORDS)) {
+    if (words.some((w) => text.includes(w))) out.push(key);
+  }
+  return out;
+}
+
+/** Weather modifier applied to a specific roll. */
+export function weatherModifierFor(weather, { skill = null, isAttack = false, isRanged = false } = {}) {
+  const value = Number(weather?.modifierValue) || 0;
+  if (!value) return 0;
+  const affects = weatherAffects(weather);
+  if (affects.includes('all')) return value;
+  if (isAttack && isRanged && affects.includes('ranged')) return value;
+  if (isAttack && !isRanged && affects.includes('melee')) return value;
+  if (skill && affects.includes(skill)) return value;
+  return 0;
+}
+
+// ── Conditions ───────────────────────────────────────────────────
+
+export const CONDITION_EFFECTS = {
+  poisoned: { checks: 'disadvantage', attacks: 'disadvantage', note: 'Disadvantage on attacks and ability checks.' },
+  frightened: { checks: 'disadvantage', attacks: 'disadvantage', note: 'Disadvantage on attacks and ability checks.' },
+  exhausted: { checks: 'disadvantage', attacks: null, note: 'Disadvantage on ability checks.' },
+  blinded: { checks: null, attacks: 'disadvantage', note: 'Disadvantage on attacks.' },
+  prone: { checks: null, attacks: 'disadvantage', note: 'Disadvantage on attacks.' },
+  inspired: { checks: 'advantage', attacks: null, note: 'Advantage on ability checks.' },
+  hidden: { checks: null, attacks: 'advantage', note: 'Advantage on attacks.' },
+};
+
+/** Combines advantage sources per 5e: any adv + any disadv = normal. */
+export function combineAdvantage(states) {
+  const hasAdv = states.includes('advantage');
+  const hasDis = states.includes('disadvantage');
+  if (hasAdv && hasDis) return 'normal';
+  if (hasAdv) return 'advantage';
+  if (hasDis) return 'disadvantage';
+  return 'normal';
+}
+
+// ── Normalizing AI roll requests ─────────────────────────────────
+
+const ABILITY_ALIASES = {
+  str: 'str', strength: 'str',
+  dex: 'dex', dexterity: 'dex',
+  con: 'con', constitution: 'con',
+  int: 'int', intelligence: 'int',
+  wis: 'wis', wisdom: 'wis',
+  cha: 'cha', charisma: 'cha',
+};
+
+const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z_:]/g, '');
+
+/**
+ * Maps a free-form skill_or_stat string (e.g. "Persuasion", "Card Sharping", "DEX save",
+ * "attack", "Dexterity", "initiative") onto an engine roll descriptor.
+ * Returns { kind: 'skill'|'ability'|'save'|'attack'|'initiative', key }.
+ */
+export function normalizeSkillOrStat(raw, skin) {
+  const s = norm(raw);
+  if (!s) return { kind: 'ability', key: 'wis' };
+  if (s.startsWith('attack') || s.includes('attack_roll') || s === 'to_hit') {
+    const ranged = s.includes('ranged');
+    const melee = s.includes('melee');
+    return { kind: 'attack', key: ranged ? 'ranged' : melee ? 'melee' : 'weapon' };
+  }
+  if (s.includes('initiative')) return { kind: 'initiative', key: 'dex' };
+  const saveMatch = s.match(/^(str|dex|con|int|wis|cha|strength|dexterity|constitution|intelligence|wisdom|charisma)_?(saving_throw|save|st)$/) ||
+    s.match(/^(saving_throw|save)_?(str|dex|con|int|wis|cha|strength|dexterity|constitution|intelligence|wisdom|charisma)$/);
+  if (saveMatch) {
+    const abilityWord = ABILITY_ALIASES[saveMatch[1]] ? saveMatch[1] : saveMatch[2];
+    return { kind: 'save', key: ABILITY_ALIASES[abilityWord] };
+  }
+  if (SKILLS[s]) return { kind: 'skill', key: s };
+  // Reskinned labels, e.g. "Card Sharping" → sleight_of_hand
+  if (skin?.skillLabels) {
+    for (const [key, label] of Object.entries(skin.skillLabels)) {
+      if (norm(label) === s) return { kind: 'skill', key };
+    }
+  }
+  // "Wisdom (Perception)" style
+  for (const key of SKILL_KEYS) {
+    if (s.includes(key)) return { kind: 'skill', key };
+  }
+  if (skin?.skillLabels) {
+    for (const [key, label] of Object.entries(skin.skillLabels)) {
+      if (s.includes(norm(label))) return { kind: 'skill', key };
+    }
+  }
+  if (ABILITY_ALIASES[s]) return { kind: 'ability', key: ABILITY_ALIASES[s] };
+  for (const [alias, key] of Object.entries(ABILITY_ALIASES)) {
+    if (alias.length > 3 && s.includes(alias)) return { kind: 'ability', key };
+  }
+  return { kind: 'ability', key: 'wis' };
+}
+
+// ── Building a check ─────────────────────────────────────────────
+
+/**
+ * Builds a fully visible check before any dice are rolled.
+ * @param {object} p
+ * @param {object} p.character
+ * @param {string|object} p.skillOrStat  raw string or a normalized descriptor
+ * @param {number|null} p.dc             target number (AC for attacks)
+ * @param {'normal'|'advantage'|'disadvantage'} [p.advantage]
+ * @param {object} [p.weather]
+ * @param {object} [p.skin]
+ * @param {object} [p.weapon]            explicit weapon for attacks (defaults to equipped)
+ * @param {Array<{label:string,value:number}>} [p.extraModifiers]
+ */
+export function buildCheck({ character, skillOrStat, dc = null, advantage = 'normal', weather = null, skin = null, weapon = null, extraModifiers = [], reason = '' }) {
+  const desc = typeof skillOrStat === 'object' && skillOrStat ? skillOrStat : normalizeSkillOrStat(skillOrStat, skin);
+  const level = character?.level || 1;
+  const prof = proficiencyBonus(level);
+  const breakdown = [];
+  let ability;
+  let proficient = false;
+  let label;
+  let isAttack = false;
+  let isRanged = false;
+  let usedWeapon = null;
+
+  if (desc.kind === 'attack') {
+    isAttack = true;
+    usedWeapon = weapon || equippedWeapon(character);
+    const tags = usedWeapon?.craftingTags || [];
+    isRanged = desc.key === 'ranged' || tags.includes('ranged');
+    const finesse = tags.includes('finesse');
+    const strMod = abilityMod(effectiveAbility(character, 'str'));
+    const dexMod = abilityMod(effectiveAbility(character, 'dex'));
+    ability = isRanged ? 'dex' : finesse ? (dexMod >= strMod ? 'dex' : 'str') : 'str';
+    proficient = Boolean(usedWeapon); // proficient with any equipped weapon; unarmed uses ability only
+    label = usedWeapon ? `Attack — ${usedWeapon.name}` : 'Attack — Unarmed';
+  } else if (desc.kind === 'skill') {
+    ability = SKILLS[desc.key];
+    proficient = (character?.skillProficiencies || []).includes(desc.key);
+    label = skillLabel(desc.key, skin);
+  } else if (desc.kind === 'save') {
+    ability = desc.key;
+    label = `${ABILITY_LABELS[desc.key]} Save`;
+  } else if (desc.kind === 'initiative') {
+    ability = 'dex';
+    label = 'Initiative';
+  } else {
+    ability = ABILITIES.includes(desc.key) ? desc.key : 'wis';
+    label = ABILITY_LABELS[ability];
+  }
+
+  const statMod = abilityMod(effectiveAbility(character, ability));
+  breakdown.push({ label: `${ability.toUpperCase()} modifier`, value: statMod });
+
+  const profValue = proficient ? prof : 0;
+  if (proficient) breakdown.push({ label: 'Proficiency', value: profValue });
+
+  const weatherMod = weatherModifierFor(weather, { skill: desc.kind === 'skill' ? desc.key : null, isAttack, isRanged });
+  if (weatherMod) breakdown.push({ label: `Weather (${weather.type})`, value: weatherMod });
+
+  let itemMod = 0;
+  if (isAttack) {
+    itemMod += usedWeapon?.statModifiers?.attack || 0;
+    // Non-weapon equipped gear with a generic attack bonus
+    for (const it of equippedItems(character)) {
+      if (it !== usedWeapon && it.type !== 'weapon' && typeof it.statModifiers?.attack === 'number') itemMod += it.statModifiers.attack;
+    }
+  } else {
+    if (desc.kind === 'skill') itemMod += itemModifier(character, desc.key);
+    if (desc.kind === 'initiative') itemMod += itemModifier(character, 'initiative');
+    if (desc.kind === 'skill' || desc.kind === 'ability') itemMod += itemModifier(character, 'checks');
+  }
+  if (itemMod) breakdown.push({ label: 'Items', value: itemMod });
+
+  let perkMod = 0;
+  if (isAttack) perkMod += perkModifier(character, 'attack');
+  else {
+    if (desc.kind === 'skill') perkMod += perkModifier(character, desc.key);
+    if (desc.kind === 'initiative') perkMod += perkModifier(character, 'initiative');
+    if (desc.kind === 'skill' || desc.kind === 'ability') perkMod += perkModifier(character, 'checks');
+  }
+  if (perkMod) breakdown.push({ label: 'Perks', value: perkMod });
+
+  let extra = 0;
+  for (const m of extraModifiers) {
+    if (m && Number(m.value)) {
+      breakdown.push({ label: m.label, value: Number(m.value) });
+      extra += Number(m.value);
+    }
+  }
+
+  // Conditions modify advantage, visibly
+  const advSources = [advantage || 'normal'];
+  const conditionNotes = [];
+  for (const cond of character?.vitals?.conditions || []) {
+    const eff = CONDITION_EFFECTS[String(cond).toLowerCase()];
+    if (!eff) continue;
+    const applies = isAttack ? eff.attacks : desc.kind === 'skill' || desc.kind === 'ability' ? eff.checks : null;
+    if (applies) {
+      advSources.push(applies);
+      conditionNotes.push(`${cond}: ${applies}`);
+    }
+  }
+  const finalAdvantage = combineAdvantage(advSources);
+
+  const totalModifier = statMod + profValue + weatherMod + itemMod + perkMod + extra;
+
+  return {
+    kind: desc.kind,
+    key: desc.key,
+    label,
+    ability,
+    proficient,
+    dc: dc === null || dc === undefined ? null : Number(dc),
+    requestedAdvantage: advantage || 'normal',
+    advantage: finalAdvantage,
+    conditionNotes,
+    statMod,
+    proficiency: profValue,
+    weatherMod,
+    itemMod,
+    perkMod,
+    extraMod: extra,
+    totalModifier,
+    breakdown,
+    isAttack,
+    isRanged,
+    weapon: usedWeapon ? { id: usedWeapon.id, name: usedWeapon.name, damageDice: usedWeapon.damageDice, damageBonus: usedWeapon.statModifiers?.damage || 0 } : null,
+    reason,
+  };
+}
+
+/** Number of d20s needed for a check. */
+export function d20Count(check) {
+  return check.advantage === 'advantage' || check.advantage === 'disadvantage' ? 2 : 1;
+}
+
+/**
+ * Resolves a check from d20 faces (digital or manually entered physical dice).
+ * @param {object} check  from buildCheck
+ * @param {number[]} faces  1 or 2 d20 results
+ */
+export function resolveCheck(check, faces) {
+  const need = d20Count(check);
+  if (!Array.isArray(faces) || faces.length !== need) throw new Error(`Expected ${need} d20 result(s).`);
+  for (const f of faces) {
+    if (!Number.isInteger(f) || f < 1 || f > 20) throw new Error('A d20 result must be a whole number from 1 to 20.');
+  }
+  let natural;
+  if (check.advantage === 'advantage') natural = Math.max(...faces);
+  else if (check.advantage === 'disadvantage') natural = Math.min(...faces);
+  else natural = faces[0];
+  const total = natural + check.totalModifier;
+  const critical = natural === 20;
+  const fumble = natural === 1;
+  let success = null;
+  if (check.dc !== null) {
+    if (check.isAttack) success = critical ? true : fumble ? false : total >= check.dc;
+    else success = total >= check.dc;
+  }
+  return {
+    faces: faces.slice(),
+    natural,
+    total,
+    dc: check.dc,
+    success,
+    margin: check.dc === null ? null : total - check.dc,
+    critical,
+    fumble,
+  };
+}
+
+/** Rolls d20(s) for a check with the given RNG and resolves it. */
+export function rollCheck(check, rng = getDefaultRng()) {
+  const faces = [];
+  for (let i = 0; i < d20Count(check); i++) faces.push(rollDie(20, rng));
+  return resolveCheck(check, faces);
+}
+
+/** Damage expression for an attack check's weapon (unarmed = 1 + STR mod). */
+export function damageExpression(check, character) {
+  const abilityModValue = abilityMod(effectiveAbility(character, check.ability));
+  const perkDmg = perkModifier(character, 'damage');
+  if (!check.weapon?.damageDice) {
+    return { expr: String(Math.max(1, 1 + abilityModValue + perkDmg)), flatBonus: 0 };
+  }
+  const parsed = parseDice(check.weapon.damageDice);
+  if (!parsed || parsed.count === 0) {
+    const flat = (parsed?.bonus || 1) + abilityModValue + (check.weapon.damageBonus || 0) + perkDmg;
+    return { expr: String(Math.max(1, flat)), flatBonus: 0 };
+  }
+  const bonus = parsed.bonus + abilityModValue + (check.weapon.damageBonus || 0) + perkDmg;
+  const base = `${parsed.count}d${parsed.sides}`;
+  return { expr: bonus === 0 ? base : `${base}${bonus > 0 ? '+' : '-'}${Math.abs(bonus)}`, flatBonus: bonus };
+}
+
+/** Human-readable modifier: +3 / −1 / +0 */
+export function fmtMod(n) {
+  const v = Number(n) || 0;
+  return v >= 0 ? `+${v}` : `−${Math.abs(v)}`;
+}

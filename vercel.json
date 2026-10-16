@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/dm-turn.js": { "maxDuration": 120 },
+    "api/archivist.js": { "maxDuration": 180 },
+    "api/world-forge.js": { "maxDuration": 180 },
+    "api/paint-scene.js": { "maxDuration": 120 }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

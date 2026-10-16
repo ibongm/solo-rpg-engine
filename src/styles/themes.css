@@ -1,0 +1,126 @@
+/*
+ * Solo RPG Engine — Genre Theme Tokens
+ * Colors are stored as space-separated RGB channels so Tailwind can apply
+ * alpha: rgb(var(--c-accent) / <alpha-value>). Switching `data-theme` on <html>
+ * restyles the whole app instantly, with no reload.
+ */
+
+:root,
+[data-theme='fantasy'] {
+  /* Warm parchment, crimson accents, serif headings */
+  --c-bg: 241 230 207;
+  --c-surface: 250 243 227;
+  --c-surface-2: 232 217 186;
+  --c-ink: 43 29 20;
+  --c-muted: 110 88 66;
+  --c-border: 160 128 90;
+  --c-accent: 150 28 36;
+  --c-accent-ink: 255 246 235;
+  --c-accent-2: 176 125 38;
+  --c-success: 46 110 58;
+  --c-warning: 184 120 20;
+  --c-danger: 160 30 30;
+  --c-info: 52 86 130;
+  --font-heading: 'Cinzel', 'Times New Roman', serif;
+  --font-body: 'EB Garamond', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --radius: 0.5rem;
+  --border-width: 1px;
+  --shadow-color: 80 50 20;
+  --bg-texture: radial-gradient(circle at 20% 10%, rgb(255 250 235 / 0.6), transparent 55%),
+    radial-gradient(circle at 80% 90%, rgb(200 170 120 / 0.25), transparent 60%);
+}
+
+[data-theme='frontier_noir'] {
+  /* Stark cream/charcoal, high-contrast ink borders, slab-serif headings */
+  --c-bg: 236 230 214;
+  --c-surface: 248 244 232;
+  --c-surface-2: 222 214 194;
+  --c-ink: 22 22 22;
+  --c-muted: 84 80 72;
+  --c-border: 22 22 22;
+  --c-accent: 168 40 24;
+  --c-accent-ink: 248 244 232;
+  --c-accent-2: 60 60 60;
+  --c-success: 40 96 52;
+  --c-warning: 160 104 16;
+  --c-danger: 168 28 20;
+  --c-info: 40 60 90;
+  --font-heading: 'Zilla Slab', 'Rockwell', serif;
+  --font-body: 'Libre Franklin', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --radius: 0.125rem;
+  --border-width: 2px;
+  --shadow-color: 0 0 0;
+  --bg-texture: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.025) 0 1px, transparent 1px 3px);
+}
+
+[data-theme='scifi'] {
+  /* Deep slate/obsidian, cyan/emerald neon accents, monospace headings */
+  --c-bg: 9 13 20;
+  --c-surface: 17 24 36;
+  --c-surface-2: 27 37 54;
+  --c-ink: 214 232 240;
+  --c-muted: 120 146 166;
+  --c-border: 40 70 92;
+  --c-accent: 34 211 238;
+  --c-accent-ink: 6 16 24;
+  --c-accent-2: 52 211 153;
+  --c-success: 52 211 153;
+  --c-warning: 250 204 21;
+  --c-danger: 248 80 96;
+  --c-info: 96 165 250;
+  --font-heading: 'JetBrains Mono', ui-monospace, monospace;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --radius: 0.375rem;
+  --border-width: 1px;
+  --shadow-color: 34 211 238;
+  --bg-texture: radial-gradient(circle at 15% 0%, rgb(34 211 238 / 0.08), transparent 45%),
+    radial-gradient(circle at 90% 100%, rgb(52 211 153 / 0.06), transparent 50%);
+}
+
+html {
+  color-scheme: light;
+}
+html[data-theme='scifi'] {
+  color-scheme: dark;
+}
+
+body {
+  background-color: rgb(var(--c-bg));
+  background-image: var(--bg-texture);
+  background-attachment: fixed;
+  color: rgb(var(--c-ink));
+  font-family: var(--font-body);
+  transition: background-color 250ms ease, color 250ms ease;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-heading {
+  font-family: var(--font-heading);
+  letter-spacing: 0.01em;
+}
+
+[data-theme='scifi'] h1,
+[data-theme='scifi'] h2,
+[data-theme='scifi'] h3 {
+  text-shadow: 0 0 12px rgb(var(--c-accent) / 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+[data-theme='frontier_noir'] h1,
+[data-theme='frontier_noir'] h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Thin themed scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--c-border) / 0.7) transparent;
+}
