@@ -70,7 +70,19 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), localApi()],
     server: { port: 5173 },
     build: {
-      chunkSizeWarningLimit: 1500,
+      // vendor-firebase (~685 kB) is needed at boot for auth; everything else stays well under this.
+      chunkSizeWarningLimit: 750,
+      rolldownOptions: {
+        output: {
+          // Vendor code changes far less often than the app, so it gets its own long-cached chunks.
+          codeSplitting: {
+            groups: [
+              { name: 'vendor-react', test: /node_modules[\/](react|react-dom|scheduler)[\/]/ },
+              { name: 'vendor-firebase', test: /node_modules[\/](@firebase|firebase)[\/]/ },
+            ],
+          },
+        },
+      },
     },
     test: {
       environment: 'node',

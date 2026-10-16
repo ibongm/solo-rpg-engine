@@ -10,7 +10,7 @@ There are three ways to run the engine. Each one builds on the previous.
 
 ## 0. Prerequisites
 
-- **Node.js 20+**, which gives you `npm`.
+- **Node.js 22.12+** (24 LTS recommended), which gives you `npm`.
 - **Java 11+.** The Firebase emulators need it.
 - **Dependencies:** run `npm install` once.
 

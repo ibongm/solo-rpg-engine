@@ -1,13 +1,24 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { User, Backpack, Map, ScrollText, BookOpen, Cpu } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { questsEnabled } from '../../engine/deeds.js';
+import { Spinner } from '../common/ui.jsx';
 import Tab1Character from './Tab1Character.jsx';
 import Tab2Inventory from './Tab2Inventory.jsx';
-import Tab3MapFactions from './Tab3MapFactions.jsx';
 import Tab4Quests from './Tab4Quests.jsx';
 import Tab5DiaryCodex from './Tab5DiaryCodex.jsx';
 import Tab6Engine from './Tab6Engine.jsx';
+
+// The map tab pulls in @xyflow/react, so it loads only when the tab is first opened.
+const LazyMapFactions = lazy(() => import('./Tab3MapFactions.jsx'));
+
+function Tab3MapFactions() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-8 text-muted"><Spinner className="h-5 w-5" /></div>}>
+      <LazyMapFactions />
+    </Suspense>
+  );
+}
 
 export const TABS = [
   { id: 1, label: 'Character', icon: User, Component: Tab1Character },

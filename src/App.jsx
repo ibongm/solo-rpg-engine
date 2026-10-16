@@ -1,12 +1,22 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, firebaseConfigured } from './firebase/config.js';
 import { useGameStore } from './store/useGameStore.js';
 import { Toasts, Spinner } from './components/common/ui.jsx';
 import SignIn from './components/auth/SignIn.jsx';
 import SetupRequired from './components/auth/SetupRequired.jsx';
-import GuildhallHub from './components/hub/GuildhallHub.jsx';
-import GameStage from './components/stage/GameStage.jsx';
+
+// The hub and the game stage are separate views; each loads its own chunk on first use.
+const GuildhallHub = lazy(() => import('./components/hub/GuildhallHub.jsx'));
+const GameStage = lazy(() => import('./components/stage/GameStage.jsx'));
+
+function ViewFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center gap-2 text-muted">
+      <Spinner className="h-5 w-5" /> Loading…
+    </div>
+  );
+}
 
 export default function App() {
   const user = useGameStore((s) => s.user);
@@ -31,7 +41,9 @@ export default function App() {
 
   return (
     <>
-      {!user ? <SignIn /> : view === 'game' ? <GameStage /> : <GuildhallHub />}
+      <Suspense fallback={<ViewFallback />}>
+        {!user ? <SignIn /> : view === 'game' ? <GameStage /> : <GuildhallHub />}
+      </Suspense>
       <Toasts />
     </>
   );
