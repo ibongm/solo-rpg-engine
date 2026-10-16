@@ -10,3 +10,6 @@ firestore-debug.log
 ui-debug.log
 .firebase
 emulator-data
+
+.vercel
+.env*
