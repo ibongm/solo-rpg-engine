@@ -1,22 +1,35 @@
 /**
  * POST /api/dm-turn — the main turn handler.
- * Body: { model, context: { static, dynamic }, action, cacheRef }
- * Returns: { result (DM_TURN_SCHEMA), usage, model, cacheRef, cacheUsed }
+ * Body: { model, context: { static, dynamic }, action, cacheRef, turnId? }
+ * Returns: { result (DM_TURN_SCHEMA), usage, model, cacheRef, cacheUsed, deduplicated? }
  * The storyteller only PROPOSES state; the client's deterministic engine applies it.
+ * A repeated turnId from the same player within 5 minutes reuses the first generation (see turnCache.js).
  */
 import { withHandler, HttpError, isMock } from './_lib/http.js';
 import { generateStructured, ensureContextCache, resolveModel } from './_lib/vertex.js';
 import { DM_TURN_SCHEMA } from './_lib/schemas.js';
 import { DM_SYSTEM_RULES, renderStatic, renderDynamic } from './_lib/prompts.js';
 import { mockDmTurn, MOCK_USAGE } from './_lib/mock.js';
+import { createTurnCache, cleanTurnId } from './_lib/turnCache.js';
 
 const ACTION_KINDS = new Set(['action', 'roll_result', 'travel', 'death_save', 'event', 'companion_talk']);
 
-export default withHandler(async ({ body }) => {
+export const TURN_RESULT_CACHE = createTurnCache();
+
+export default withHandler(async ({ body, uid }) => {
   const { context, action } = body;
   if (!context || typeof context !== 'object' || !context.static || !context.dynamic) throw new HttpError(400, 'Missing turn context.');
   if (!action || typeof action !== 'object' || !ACTION_KINDS.has(action.kind)) throw new HttpError(400, 'Missing or invalid action.');
   if (action.text && String(action.text).length > 4000) throw new HttpError(413, 'Action text is too long.');
+  const turnId = cleanTurnId(body.turnId);
+  if (!turnId) return generateTurn(body);
+  const { promise, cached } = TURN_RESULT_CACHE.run(`${uid}:${turnId}`, () => generateTurn(body));
+  const out = await promise;
+  return cached ? { ...out, deduplicated: true } : out;
+});
+
+async function generateTurn(body) {
+  const { context, action } = body;
   const model = resolveModel(body.model);
 
   if (isMock()) {
@@ -69,7 +82,7 @@ export default withHandler(async ({ body }) => {
   }
   const result = repairRollRequest(out.data, action);
   return { result, usage, model: out.model, cacheRef: cacheRef || null, cacheUsed: out.cacheUsed };
-});
+}
 
 export const DEFAULT_DC = 12;
 

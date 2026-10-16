@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Upcasting: cast any leveled spell with a higher free slot for extra dice (`upcast` per spell, `upcastDice`). Storyteller-requested spell attacks carry the slot as `spell_attack:<id>:<slot>`.
 * Area save spells (Fireball, Cone of Cold, …) roll damage once and an open save for each engaged enemy (`resolveAreaSaveSpell`).
 * `successChance(totalModifier, dc, advantage)` in the dice engine: exact d20 odds including natural 1/20 and advantage/disadvantage.
+* Mobile turn recovery: while a turn generates, the screen stays awake (Screen Wake Lock where supported). If the phone backgrounds the app and the request drops, the turn pauses quietly (`paused_background`) instead of erroring, and resumes automatically when you return or come back online. Genuinely failed, retryable turns get up to 2 automatic retries (`src/engine/turnRecovery.js`, `initTurnRecovery()`).
+* `/api/dm-turn` accepts the client's `turnId` and reuses a generation already finished or in progress for the same player and turn for 5 minutes (`api/_lib/turnCache.js`), so a resumed turn usually costs no second generation. It is per-instance and best-effort.
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.

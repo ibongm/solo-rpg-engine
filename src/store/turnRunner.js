@@ -13,8 +13,51 @@ import { buildCheck, rollDice, totalManualDice, damageExpression } from '../engi
 import { resolveDeathSave, isDying } from '../engine/combatEngine.js';
 import { loadCampaignSubcollections } from '../firebase/db.js';
 import { uid } from '../engine/rng.js';
+import { isBackgroundInterruption, shouldAutoResume } from '../engine/turnRecovery.js';
 
 const S = () => useGameStore.getState();
+
+// ── Mobile background recovery ───────────────────────────────────
+let lastHiddenAt = 0;
+let lastVisibleAt = 0;
+let recoveryListeners = 0;
+
+function resumeIfPaused() {
+  const q = S().retryQueue;
+  const { campaign, busy } = S();
+  if (busy || !campaign || !q || q.campaignId !== campaign.id || !shouldAutoResume(q)) return;
+  S().setRetryQueue({ ...q, autoRetries: (q.autoRetries || 0) + (q.status === 'failed' ? 1 : 0) });
+  S().toast('Resuming your turn…', 'info', 3000);
+  runQueue();
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'hidden') {
+    lastHiddenAt = Date.now();
+  } else {
+    lastVisibleAt = Date.now();
+    resumeIfPaused();
+  }
+}
+
+/**
+ * Watches for the app coming back to the foreground or back online and resumes an interrupted
+ * turn automatically. Call from the game screen; returns a cleanup function.
+ */
+export function initTurnRecovery() {
+  if (typeof document === 'undefined') return () => {};
+  if (recoveryListeners++ === 0) {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('online', resumeIfPaused);
+  }
+  resumeIfPaused(); // a turn paused before a reload resumes when the game opens
+  return () => {
+    if (--recoveryListeners === 0) {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('online', resumeIfPaused);
+    }
+  };
+}
 
 function nextTurnIndex(turns) {
   return turns.reduce((m, t) => Math.max(m, t.index ?? 0), -1) + 1;
@@ -107,7 +150,15 @@ export async function runQueue() {
   const { campaign, user } = S();
   if (!campaign || campaign.id !== q.campaignId) return false;
   S().setBusy(true, q.request.action.kind === 'roll_result' ? 'The dice have spoken…' : 'The storyteller weaves…');
+  const startedAt = Date.now();
+  let wakeLock = null;
   try {
+    // Keep the phone screen on while the storyteller writes (unsupported browsers just skip it).
+    try {
+      wakeLock = (await globalThis.navigator?.wakeLock?.request?.('screen')) || null;
+    } catch {
+      wakeLock = null;
+    }
     // Idempotency: if the turn already landed in Firestore, the queue is stale.
     if (S().turns.some((t) => t.id === q.turnId)) {
       S().clearRetryQueue();
@@ -116,8 +167,15 @@ export async function runQueue() {
     let response = q.response;
     if (!response) {
       try {
-        response = await callApi('dm-turn', q.request);
+        // turnId lets the server hand back a generation that finished after the phone dropped the request.
+        response = await callApi('dm-turn', { ...q.request, turnId: q.turnId });
       } catch (err) {
+        const background = isBackgroundInterruption(err, { visibility: globalThis.document?.visibilityState, startedAt, lastHiddenAt, lastVisibleAt, now: Date.now() });
+        if (background) {
+          // Not a real failure: the action is saved; resume quietly when the player returns.
+          S().setRetryQueue({ ...q, status: 'paused_background', error: null, retryable: true });
+          return false;
+        }
         S().setRetryQueue({ ...q, status: 'failed', error: err.message, retryable: err.retryable !== false });
         S().toast(err.message, 'error', 8000);
         return false;
@@ -167,6 +225,7 @@ export async function runQueue() {
     return true;
   } finally {
     S().setBusy(false);
+    wakeLock?.release?.().catch(() => {});
   }
 }
 

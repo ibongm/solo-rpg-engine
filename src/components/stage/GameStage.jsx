@@ -3,7 +3,7 @@ import { ArrowLeft, BookMarked, Lock, Skull, RotateCcw, Trash2, AlertTriangle } 
 import { useGameStore } from '../../store/useGameStore.js';
 import { subscribeCampaign, subscribeCharacter, subscribeTurns, subscribeDiary, subscribeCodex } from '../../firebase/db.js';
 import { themeForGenre } from '../../config/genreSkins.js';
-import { runQueue, discardQueue, promptPendingRoll } from '../../store/turnRunner.js';
+import { runQueue, discardQueue, promptPendingRoll, initTurnRecovery } from '../../store/turnRunner.js';
 import { Spinner, Modal } from '../common/ui.jsx';
 import TelemetryPill from '../common/TelemetryPill.jsx';
 import NarrativeLog from './NarrativeLog.jsx';
@@ -45,6 +45,8 @@ export default function GameStage() {
     if (isDesktop) setMobileSheet(null);
   }, [isDesktop, setMobileSheet]);
   useEffect(() => () => setMobileSheet(null), [setMobileSheet]);
+  // Resume a turn the phone interrupted when the app went to the background.
+  useEffect(() => initTurnRecovery(), []);
 
   // Live Firestore mirrors
   useEffect(() => {
@@ -132,7 +134,12 @@ export default function GameStage() {
             <div className="mx-2 mb-2 flex flex-wrap items-center gap-2 rounded-theme sm:mx-4 border-theme border-warning bg-warning/10 px-3 py-2 text-sm">
               <AlertTriangle className="h-4 w-4 text-warning" />
               <span className="flex-1">
-                {retryQueue.status === 'failed' ? retryQueue.error || 'The last turn did not complete.' : 'A turn was interrupted before it finished.'} Your action{retryQueue.roll ? ' and dice roll are' : ' is'} saved locally.
+                {retryQueue.status === 'paused_background'
+                  ? 'Your turn paused while the app was in the background. It resumes automatically.'
+                  : retryQueue.status === 'failed'
+                    ? retryQueue.error || 'The last turn did not complete.'
+                    : 'A turn was interrupted before it finished.'}{' '}
+                Your action{retryQueue.roll ? ' and dice roll are' : ' is'} saved locally.
               </span>
               <button className="btn-primary" onClick={() => runQueue()}>
                 <RotateCcw className="h-4 w-4" /> Retry Turn
