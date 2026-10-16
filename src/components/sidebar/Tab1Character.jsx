@@ -47,6 +47,8 @@ export default function Tab1Character() {
         <ProgressPanel character={character} campaign={campaign} prevXp={prevXp} nextXp={nextXp} />
       </section>
 
+      <SheetDetails character={character} weather={weather} skin={skin} />
+
       <section>
         <h3 className="section-title mb-1">Skills</h3>
         <p className="mb-2 text-xs text-muted">Click a skill to ask the DM for a check — the DC is always shown before you roll. Modifiers include gear, perks and weather.</p>
@@ -157,5 +159,69 @@ function ProgressPanel({ character, campaign, prevXp, nextXp }) {
         </table>
       </details>
     </div>
+  );
+}
+
+/** SRD 5.1 sheet details: saving throws, proficiencies, languages and features. */
+function SheetDetails({ character, weather, skin }) {
+  const srd = character.rules === 'srd51';
+  return (
+    <section className="space-y-3">
+      {srd && (
+        <p className="text-sm">
+          <strong>{character.speciesName}</strong> {character.classOrArchetype}
+          {character.subclass ? ` (${character.subclass})` : ''} · <span className="text-muted">{character.backgroundName}</span>
+        </p>
+      )}
+      <div>
+        <h3 className="section-title mb-1">Saving Throws</h3>
+        <div className="grid grid-cols-3 gap-1 text-xs">
+          {ABILITIES.map((ab) => {
+            const check = buildCheck({ character, skillOrStat: { kind: 'save', key: ab }, weather, skin });
+            return (
+              <div key={ab} className="flex items-center justify-between rounded-theme bg-surface-2/50 px-2 py-1" title={check.breakdown.map((b) => `${b.label} ${fmtMod(b.value)}`).join(', ')}>
+                <span className="flex items-center gap-1">
+                  <span className={`h-1.5 w-1.5 rounded-full ${check.proficient ? 'bg-accent' : 'border border-line'}`} />
+                  {ab.toUpperCase()}
+                </span>
+                <span className="font-mono">{fmtMod(check.totalModifier)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {srd && (
+        <details className="text-xs">
+          <summary className="cursor-pointer font-heading text-sm font-bold uppercase tracking-wider text-muted">Features & Proficiencies</summary>
+          <div className="mt-2 space-y-2">
+            <p>
+              <strong>Armor:</strong> {character.armorProficiencies?.length ? character.armorProficiencies.join(', ') : 'none'} · <strong>Weapons:</strong> {(character.weaponProficiencies || []).map((w) => w.replace(/_/g, ' ')).join(', ')}
+            </p>
+            {character.toolProficiencies?.length > 0 && (
+              <p>
+                <strong>Tools:</strong> {character.toolProficiencies.join(', ')}
+              </p>
+            )}
+            <p>
+              <strong>Languages:</strong> {(character.languages || []).join(', ')}
+              {character.darkvision ? ` · Darkvision ${character.darkvision} ft` : ''}
+              {character.size === 'small' ? ' · Small' : ''}
+            </p>
+            {character.expertise?.length > 0 && (
+              <p>
+                <strong>Expertise:</strong> {character.expertise.map((k) => skillLabel(k, skin)).join(', ')}
+              </p>
+            )}
+            <ul className="space-y-1">
+              {(character.features || []).map((f) => (
+                <li key={`${f.source}-${f.name}`}>
+                  <strong>{f.name}</strong> <span className="text-muted">({f.source})</span> — {f.description}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+    </section>
   );
 }

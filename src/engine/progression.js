@@ -116,7 +116,7 @@ export function applyXp(character, delta) {
   const levelsGained = newLevel - oldLevel;
   let vitals = character.vitals;
   if (levelsGained > 0) {
-    const gain = hpGainPerLevel(character.hitDie || 8, character.stats?.con ?? 10) * levelsGained;
+    const gain = (hpGainPerLevel(character.hitDie || 8, character.stats?.con ?? 10) + (character.hpBonusPerLevel || 0)) * levelsGained;
     vitals = { ...vitals, maxHp: vitals.maxHp + gain, hp: vitals.hp + gain };
   }
   return { character: { ...character, xp, level: newLevel, vitals }, levelsGained };

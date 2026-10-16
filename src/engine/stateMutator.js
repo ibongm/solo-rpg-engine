@@ -432,7 +432,13 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
   return { campaign: camp, character: ch, codexUpserts, events, died, downed };
 }
 
-/** Pure: equip/unequip respecting one weapon + one armor slot. */
+const isShield = (i) => i?.armorCategory === 'shield';
+const isTwoHanded = (i) => i?.type === 'weapon' && (i.properties || []).includes('two-handed');
+
+/**
+ * Pure: equip/unequip with slots — one weapon, one body armor, one shield.
+ * A two-handed weapon and a shield cannot be equipped together (equipping one unequips the other).
+ */
 export function toggleEquip(character, itemId) {
   const ch = clone(character);
   const item = ch.inventory.find((i) => i.id === itemId);
@@ -441,10 +447,15 @@ export function toggleEquip(character, itemId) {
     item.equipped = false;
     return ch;
   }
-  if (item.type === 'weapon' || item.type === 'armor') {
-    for (const other of ch.inventory) if (other.type === item.type && other.id !== item.id) other.equipped = false;
-  }
   if (item.type === 'consumable' || item.type === 'material') return ch;
+  for (const other of ch.inventory) {
+    if (other.id === item.id || !other.equipped) continue;
+    if (item.type === 'weapon' && other.type === 'weapon') other.equipped = false;
+    else if (isShield(item) && isShield(other)) other.equipped = false;
+    else if (item.type === 'armor' && !isShield(item) && other.type === 'armor' && !isShield(other)) other.equipped = false;
+    else if (isShield(item) && isTwoHanded(other)) other.equipped = false;
+    else if (isTwoHanded(item) && isShield(other)) other.equipped = false;
+  }
   item.equipped = true;
   return ch;
 }

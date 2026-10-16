@@ -25,7 +25,7 @@ export default function PrintSheet({ character, skin, onClose }) {
           <div>
             <div className="text-2xl font-bold">{character.name}</div>
             <div className="text-sm">
-              Level {character.level} {character.classOrArchetype} · {character.genre}
+              Level {character.level} {character.speciesName ? `${character.speciesName} ` : ''}{character.classOrArchetype}{character.backgroundName ? ` · ${character.backgroundName}` : ''} · {character.genre}
             </div>
           </div>
           <div className="text-right text-sm">
@@ -64,11 +64,12 @@ export default function PrintSheet({ character, skin, onClose }) {
           <div className="grid grid-cols-3 gap-x-4 text-sm">
             {SKILL_KEYS.map((k) => {
               const p = character.skillProficiencies.includes(k);
-              const total = abilityMod(character.stats[SKILLS[k]]) + (p ? prof : 0) + itemModifier(character, k);
+              const ex = p && (character.expertise || []).includes(k);
+              const total = abilityMod(character.stats[SKILLS[k]]) + (p ? prof * (ex ? 2 : 1) : 0) + itemModifier(character, k);
               return (
                 <div key={k} className="flex justify-between">
                   <span>
-                    {p ? '●' : '○'} {skillLabel(k, skin)}
+                    {ex ? '◆' : p ? '●' : '○'} {skillLabel(k, skin)}
                   </span>
                   <span className="font-mono">{fmtMod(total)}</span>
                 </div>
@@ -76,6 +77,25 @@ export default function PrintSheet({ character, skin, onClose }) {
             })}
           </div>
         </div>
+        {character.savingThrows?.length > 0 && (
+          <div className="print-card mb-3 text-sm">
+            <div className="mb-1 text-xs font-bold uppercase">Saving Throws</div>
+            {Object.keys(character.stats).map((ab) => `${character.savingThrows.includes(ab) ? '●' : '○'} ${ab.toUpperCase()} ${fmtMod(abilityMod(character.stats[ab]) + (character.savingThrows.includes(ab) ? prof : 0))}`).join('   ')}
+          </div>
+        )}
+        {character.features?.length > 0 && (
+          <div className="print-card mb-3">
+            <div className="mb-1 text-xs font-bold uppercase">Features & Traits</div>
+            {character.features.map((f) => (
+              <div key={`${f.source}-${f.name}`} className="text-sm">
+                <strong>{f.name}</strong> ({f.source}) — {f.description}
+              </div>
+            ))}
+            <div className="mt-1 text-xs">
+              Languages: {(character.languages || []).join(', ')} · Armor: {(character.armorProficiencies || []).join(', ') || 'none'} · Weapons: {(character.weaponProficiencies || []).join(', ')}
+            </div>
+          </div>
+        )}
         {(character.customPerkTree || []).some((p) => p.unlocked) && (
           <div className="print-card mb-3">
             <div className="mb-1 text-xs font-bold uppercase">Perks</div>

@@ -6,6 +6,7 @@
 import { ABILITIES, ABILITY_LABELS, SKILLS, SKILL_KEYS, skillLabel } from '../config/genreSkins.js';
 import { abilityMod, proficiencyBonus, perkModifier } from './progression.js';
 import { rollDie, getDefaultRng } from './rng.js';
+import { isSrdCharacter, isWeaponProficient, isArmorProficient } from './characterBuilder.js';
 
 // ── Dice expressions ─────────────────────────────────────────────
 
@@ -73,8 +74,47 @@ export function effectiveAbility(character, ability) {
   return (character?.stats?.[ability] ?? 10) + itemModifier(character, ability) + perkModifier(character, ability);
 }
 
+/** Equipped body armor (SRD light/medium/heavy), if any. */
+export function equippedBodyArmor(character) {
+  return equippedItems(character).find((i) => i.type === 'armor' && i.armorCategory && i.armorCategory !== 'shield') || null;
+}
+
+export function equippedShield(character) {
+  return equippedItems(character).find((i) => i.armorCategory === 'shield') || null;
+}
+
+/**
+ * Armor Class.
+ *  - SRD body armor: base AC + Dex (capped by the armor's category).
+ *  - No body armor: SRD characters use 10 + Dex, or their class's Unarmored Defense;
+ *    legacy characters keep their stored base AC.
+ *  - Shield, item 'ac' bonuses (legacy armor, upgrades), perks and the Defense fighting style add on top.
+ */
 export function effectiveAc(character) {
-  return (character?.vitals?.ac ?? 10) + itemModifier(character, 'ac') + perkModifier(character, 'ac');
+  const dex = abilityMod(effectiveAbility(character, 'dex'));
+  const body = equippedBodyArmor(character);
+  const shield = equippedShield(character);
+  let base;
+  if (body) {
+    const cap = body.dexCap;
+    base = (Number(body.baseAc) || 10) + (cap === 0 ? 0 : cap === null || cap === undefined ? dex : Math.min(dex, cap));
+  } else if (isSrdCharacter(character)) {
+    const ud = character.unarmoredDefense;
+    if (ud === 'con') base = 10 + dex + abilityMod(effectiveAbility(character, 'con'));
+    else if (ud === 'wis' && !shield) base = 10 + dex + abilityMod(effectiveAbility(character, 'wis'));
+    else if (ud === 'draconic') base = 13 + dex;
+    else base = 10 + dex;
+  } else {
+    base = character?.vitals?.ac ?? 10;
+  }
+  const shieldAc = shield ? Number(shield.baseAc) || 2 : 0;
+  const defense = character?.fightingStyle === 'defense' && body ? 1 : 0;
+  return base + shieldAc + defense + itemModifier(character, 'ac') + perkModifier(character, 'ac');
+}
+
+/** Armor the character is not proficient with — imposes disadvantage on Str/Dex rolls and attacks. */
+export function unproficientArmor(character) {
+  return equippedItems(character).filter((i) => i.armorCategory && !isArmorProficient(character, i));
 }
 
 export function effectiveMaxHp(character) {
@@ -82,7 +122,9 @@ export function effectiveMaxHp(character) {
 }
 
 export function effectiveSpeed(character) {
-  return (character?.vitals?.speed ?? 30) + perkModifier(character, 'speed');
+  const body = equippedBodyArmor(character);
+  const tooHeavy = body?.strReq && effectiveAbility(character, 'str') < body.strReq && !character?.ignoresHeavyArmorSpeed ? -10 : 0;
+  return Math.max(0, (character?.vitals?.speed ?? 30) + perkModifier(character, 'speed') + tooHeavy);
 }
 
 export function equippedWeapon(character) {
@@ -231,23 +273,33 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
   let isRanged = false;
   let usedWeapon = null;
 
+  const srd = isSrdCharacter(character);
+  let expert = false;
+  const advNotes = [];
   if (desc.kind === 'attack') {
     isAttack = true;
     usedWeapon = weapon || equippedWeapon(character);
     const tags = usedWeapon?.craftingTags || [];
+    const props = usedWeapon?.properties || [];
     isRanged = desc.key === 'ranged' || tags.includes('ranged');
-    const finesse = tags.includes('finesse');
+    const finesse = tags.includes('finesse') || props.includes('finesse') || (character?.martialArts && isMonkWeapon(usedWeapon));
     const strMod = abilityMod(effectiveAbility(character, 'str'));
     const dexMod = abilityMod(effectiveAbility(character, 'dex'));
     ability = isRanged ? 'dex' : finesse ? (dexMod >= strMod ? 'dex' : 'str') : 'str';
-    proficient = Boolean(usedWeapon); // proficient with any equipped weapon; unarmed uses ability only
+    // Legacy characters are proficient with any equipped weapon; SRD characters follow their proficiency list
+    // and, as in 5e, are always proficient with unarmed strikes.
+    proficient = usedWeapon ? isWeaponProficient(character, usedWeapon) : srd;
     label = usedWeapon ? `Attack — ${usedWeapon.name}` : 'Attack — Unarmed';
+    if (usedWeapon && props.includes('heavy') && character?.size === 'small') advNotes.push(['heavy weapon (Small)', 'disadvantage']);
   } else if (desc.kind === 'skill') {
     ability = SKILLS[desc.key];
     proficient = (character?.skillProficiencies || []).includes(desc.key);
+    expert = proficient && (character?.expertise || []).includes(desc.key);
     label = skillLabel(desc.key, skin);
+    if (desc.key === 'stealth' && equippedItems(character).some((i) => i.stealthDisadvantage)) advNotes.push(['armor (Stealth)', 'disadvantage']);
   } else if (desc.kind === 'save') {
     ability = desc.key;
+    proficient = (character?.savingThrows || []).includes(desc.key);
     label = `${ABILITY_LABELS[desc.key]} Save`;
   } else if (desc.kind === 'initiative') {
     ability = 'dex';
@@ -260,8 +312,13 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
   const statMod = abilityMod(effectiveAbility(character, ability));
   breakdown.push({ label: `${ability.toUpperCase()} modifier`, value: statMod });
 
-  const profValue = proficient ? prof : 0;
-  if (proficient) breakdown.push({ label: 'Proficiency', value: profValue });
+  const profValue = proficient ? (expert ? prof * 2 : prof) : 0;
+  if (proficient) breakdown.push({ label: expert ? 'Proficiency (Expertise ×2)' : 'Proficiency', value: profValue });
+
+  if (isAttack && isRanged && character?.fightingStyle === 'archery') extraModifiers = [...extraModifiers, { label: 'Archery style', value: 2 }];
+  if (unproficientArmor(character).length && (isAttack || ((desc.kind === 'skill' || desc.kind === 'ability' || desc.kind === 'save') && (ability === 'str' || ability === 'dex')))) {
+    advNotes.push(['armor without proficiency', 'disadvantage']);
+  }
 
   const weatherMod = weatherModifierFor(weather, { skill: desc.kind === 'skill' ? desc.key : null, isAttack, isRanged });
   if (weatherMod) breakdown.push({ label: `Weather (${weather.type})`, value: weatherMod });
@@ -300,6 +357,10 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
   // Conditions modify advantage, visibly
   const advSources = [advantage || 'normal'];
   const conditionNotes = [];
+  for (const [why, state] of advNotes) {
+    advSources.push(state);
+    conditionNotes.push(`${why}: ${state}`);
+  }
   for (const cond of character?.vitals?.conditions || []) {
     const eff = CONDITION_EFFECTS[String(cond).toLowerCase()];
     if (!eff) continue;
@@ -333,7 +394,17 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
     breakdown,
     isAttack,
     isRanged,
-    weapon: usedWeapon ? { id: usedWeapon.id, name: usedWeapon.name, damageDice: usedWeapon.damageDice, damageBonus: usedWeapon.statModifiers?.damage || 0 } : null,
+    weapon: usedWeapon
+      ? {
+          id: usedWeapon.id,
+          name: usedWeapon.name,
+          damageDice: usedWeapon.damageDice,
+          damageBonus: usedWeapon.statModifiers?.damage || 0,
+          properties: usedWeapon.properties || [],
+          versatileDice: usedWeapon.versatileDice || null,
+          ranged: isRanged,
+        }
+      : null,
     reason,
   };
 }
@@ -389,17 +460,34 @@ export function rollCheck(check, rng = getDefaultRng()) {
 export function damageExpression(check, character) {
   const abilityModValue = abilityMod(effectiveAbility(character, check.ability));
   const perkDmg = perkModifier(character, 'damage');
-  if (!check.weapon?.damageDice) {
+  if (!check.weapon) {
+    // Monks' Martial Arts: unarmed strikes deal 1d4 + ability modifier.
+    if (character?.martialArts) {
+      const bonus = abilityModValue + perkDmg;
+      return { expr: bonus === 0 ? '1d4' : `1d4${bonus > 0 ? '+' : '-'}${Math.abs(bonus)}`, flatBonus: bonus };
+    }
     return { expr: String(Math.max(1, 1 + abilityModValue + perkDmg)), flatBonus: 0 };
   }
-  const parsed = parseDice(check.weapon.damageDice);
+  if (!check.weapon.damageDice) return { expr: '0', flatBonus: 0 };
+  const props = check.weapon.properties || [];
+  const twoHanding = props.includes('versatile') && check.weapon.versatileDice && !equippedShield(character);
+  const dueling = character?.fightingStyle === 'dueling' && !check.weapon.ranged && !props.includes('two-handed') && !twoHanding ? 2 : 0;
+  const parsed = parseDice(twoHanding ? check.weapon.versatileDice : check.weapon.damageDice);
   if (!parsed || parsed.count === 0) {
     const flat = (parsed?.bonus || 1) + abilityModValue + (check.weapon.damageBonus || 0) + perkDmg;
     return { expr: String(Math.max(1, flat)), flatBonus: 0 };
   }
-  const bonus = parsed.bonus + abilityModValue + (check.weapon.damageBonus || 0) + perkDmg;
+  const bonus = parsed.bonus + abilityModValue + (check.weapon.damageBonus || 0) + perkDmg + dueling;
   const base = `${parsed.count}d${parsed.sides}`;
   return { expr: bonus === 0 ? base : `${base}${bonus > 0 ? '+' : '-'}${Math.abs(bonus)}`, flatBonus: bonus };
+}
+
+/** Monk weapons: shortswords and simple melee weapons that are not two-handed or heavy. */
+export function isMonkWeapon(weapon) {
+  if (!weapon) return true;
+  const props = weapon.properties || [];
+  if (weapon.srdId === 'shortsword') return true;
+  return weapon.category === 'simple' && !(weapon.craftingTags || []).includes('ranged') && !props.includes('two-handed') && !props.includes('heavy');
 }
 
 /** Human-readable modifier: +3 / −1 / +0 */

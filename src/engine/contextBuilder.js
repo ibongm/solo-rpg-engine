@@ -107,6 +107,13 @@ export function buildDmContext({ campaign, character, turns = [], diary = [], co
         skillProficiencies: character.skillProficiencies,
         perks: (character.customPerkTree || []).filter((p) => p.unlocked).map((p) => ({ name: p.name, description: p.description })),
         backstory: character.backstory || '',
+        species: character.speciesName || null,
+        background: character.backgroundName || null,
+        subclass: character.subclass || null,
+        savingThrows: character.savingThrows || [],
+        expertise: character.expertise || [],
+        languages: character.languages || [],
+        features: (character.features || []).map((f) => ({ name: f.name, description: f.description })),
       },
     },
     dynamic: {

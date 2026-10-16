@@ -80,8 +80,11 @@ export function renderStatic(ctx) {
   for (const f of s.factions || []) lines.push(`- [${f.id}] ${f.name}: ${clip(f.description, 300)}`);
   lines.push('');
   lines.push('## Protagonist (core)');
-  lines.push(`${ch.name}, level ${ch.level} ${ch.classOrArchetype}. Stats ${Object.entries(ch.stats || {}).map(([k, v]) => `${k.toUpperCase()} ${v}`).join(' ')}.`);
-  if (ch.skillProficiencies?.length) lines.push(`Proficient: ${ch.skillProficiencies.join(', ')}.`);
+  lines.push(`${ch.name}, level ${ch.level} ${ch.species ? `${ch.species} ` : ''}${ch.classOrArchetype}${ch.subclass ? ` (${ch.subclass})` : ''}${ch.background ? `, ${ch.background} background` : ''}. Stats ${Object.entries(ch.stats || {}).map(([k, v]) => `${k.toUpperCase()} ${v}`).join(' ')}.`);
+  if (ch.skillProficiencies?.length) lines.push(`Proficient: ${ch.skillProficiencies.join(', ')}${ch.expertise?.length ? ` (expertise: ${ch.expertise.join(', ')})` : ''}.`);
+  if (ch.savingThrows?.length) lines.push(`Saving throw proficiencies: ${ch.savingThrows.join(', ')}.`);
+  if (ch.languages?.length) lines.push(`Languages: ${ch.languages.join(', ')}.`);
+  if (ch.features?.length) lines.push(`Features & traits (honor them in narration; the engine handles all math): ${ch.features.map((f) => `${f.name} — ${clip(f.description, 140)}`).join('; ')}.`);
   if (ch.perks?.length) lines.push(`Unlocked perks: ${ch.perks.map((p) => `${p.name} (${clip(p.description, 120)})`).join('; ')}.`);
   if (ch.backstory) lines.push(`Backstory: ${clip(ch.backstory, 1200)}`);
   lines.push('');
