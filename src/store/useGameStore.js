@@ -94,6 +94,14 @@ export const useGameStore = create(
       openModal: (type, props = {}) => set({ modal: { type, props } }),
       closeModal: () => set({ modal: null }),
 
+      // ── Almanac (global reference window) ──────────────────
+      almanacOpen: false,
+      setAlmanacOpen: (almanacOpen) => set({ almanacOpen }),
+      toggleAlmanac: () => set((s) => ({ almanacOpen: !s.almanacOpen })),
+      /** Genre the creator / World Forge is showing, so the Almanac follows it outside a campaign. */
+      almanacGenre: null,
+      setAlmanacGenre: (almanacGenre) => set({ almanacGenre }),
+
       // ── Action deck draft ───────────────────────────────────
       draft: { text: '', stance: null, ooc: false },
       setDraft: (patch) => set((s) => ({ draft: { ...s.draft, ...patch } })),

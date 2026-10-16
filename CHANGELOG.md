@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `/api/dm-turn` accepts the client's `turnId` and reuses a generation already finished or in progress for the same player and turn for 5 minutes (`api/_lib/turnCache.js`), so a resumed turn usually costs no second generation. It is per-instance and best-effort.
 * Universal tooltips (`<Tooltip>` in `src/components/common/ui.jsx`): hover or focus on desktop; on touch screens a separate ⓘ button next to the control opens a dismissible popover without triggering the control. Content lives in `src/config/helpTooltips.js` (abilities, skills, saves, AC, speed, HP, hit die, proficiency, weapon properties, conditions, World Forge settings, stances).
 * Tooltips in the character creator (ability and skill picks, ability scores, weapon properties), World Forge settings, leveling pace controls, Engine tab, action stances, Character tab (abilities, skills with their modifier breakdown, saving throws), vitals HUD (AC, speed, HP, conditions) and inventory property tags.
+* Global Almanac on every screen (floating button, `Alt+A`, or `?` when not typing): a non-blocking, draggable window on desktop and a bottom sheet that minimizes to a pill on phones. Tabs: Rules (incl. conditions and XP pacing), Origins & Roles, Gear & Arsenal (prices in the genre's currency), Powers (all 319 spells, levels 0–9) and, during a campaign, the World Codex (people, places, factions, rumors, Lore Pinboard). One search box covers everything; a genre selector shows reskinned names with the SRD name alongside.
+* Pop-out Almanac (`/?almanac=1`): opens in its own browser window without signing in and follows the main window's genre and campaign over `BroadcastChannel('solo-rpg-almanac')`.
+* `src/engine/almanac.js` (`buildAlmanacIndex`, `searchAlmanac`) and `src/config/rulesReference.js`.
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.

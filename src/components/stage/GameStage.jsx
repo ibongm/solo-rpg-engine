@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ArrowLeft, BookMarked, Lock, Skull, RotateCcw, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, BookMarked, BookOpen, Lock, Skull, RotateCcw, Trash2, AlertTriangle } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { subscribeCampaign, subscribeCharacter, subscribeTurns, subscribeDiary, subscribeCodex } from '../../firebase/db.js';
 import { themeForGenre } from '../../config/genreSkins.js';
@@ -121,6 +121,9 @@ export default function GameStage() {
               <BookMarked className="h-3 w-3" /> <span className="hidden sm:inline">Archivist writing…</span>
             </span>
           )}
+          <button className="btn-ghost lg:hidden" onClick={() => useGameStore.getState().toggleAlmanac()} title="Almanac" aria-label="Open the Almanac">
+            <BookOpen className="h-4 w-4" />
+          </button>
           <TelemetryPill />
         </div>
       </header>

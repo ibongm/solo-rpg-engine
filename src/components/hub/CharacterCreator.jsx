@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dices, Wand2, ChevronLeft, ChevronRight, Save, Check, Minus, Plus, Shield, Heart, Footprints, Lock, Coins } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { createCharacterDoc, updateCharacterDoc } from '../../firebase/db.js';
@@ -48,6 +48,11 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
   // Concept
   const [name, setName] = useState(initial?.name || '');
   const [genre, setGenre] = useState(initial?.genre || 'fantasy');
+  // The Almanac follows the genre on screen while no campaign is open.
+  useEffect(() => {
+    useGameStore.getState().setAlmanacGenre(genre);
+    return () => useGameStore.getState().setAlmanacGenre(null);
+  }, [genre]);
   const [backstory, setBackstory] = useState(initial?.backstory || '');
   const [portraitUrl, setPortraitUrl] = useState(initial?.portraitUrl || '');
   // Species

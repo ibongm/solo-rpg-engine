@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Hammer, Wand2, ChevronLeft, ChevronRight, Upload, RefreshCw, Check, MapPin, Users, ScrollText, Flag } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { callApi } from '../../firebase/api.js';
@@ -21,6 +21,11 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
 
   const [step, setStep] = useState(0);
   const [genre, setGenre] = useState('fantasy');
+  // The Almanac follows the genre on screen while no campaign is open.
+  useEffect(() => {
+    useGameStore.getState().setAlmanacGenre(genre);
+    return () => useGameStore.getState().setAlmanacGenre(null);
+  }, [genre]);
   const [currencyLabel, setCurrencyLabel] = useState(GENRES.fantasy.currencyLabel);
   const [skillOverrides, setSkillOverrides] = useState({});
   const [tone, setTone] = useState(5);
