@@ -259,3 +259,11 @@ Names and flavor only: never output numbers, statistics, dice or rules. Avoid qu
 export function renderMediaSkinRequest(body) {
   return [`Universe: ${clip(body.mediaTitle, 200)}`, body.mediaNotes ? `Player notes: ${clip(body.mediaNotes, 2000)}` : ''].filter(Boolean).join('\n');
 }
+
+export const CONVERT_IMPORT_RULES = `You extract data from a character sheet or an adventure/campaign document a player pasted into a solo tabletop RPG.
+Decide whether it is a character or a campaign. Copy only what the text states: name, level, class, species/race, the six ability scores, proficient skills, inventory items, backstory and coin for a character; title, premise, factions, locations, NPCs, quests and lore facts for a campaign.
+Never invent numbers. Do not report hit points, armor class or bonuses: the game engine recomputes them. Leave out anything the text does not say.`;
+
+export function renderConvertImportRequest(body) {
+  return [`File name: ${clip(body.filename || 'pasted text', 120)}`, '--- BEGIN TEXT ---', clip(body.text, 12000), '--- END TEXT ---'].join('\n');
+}

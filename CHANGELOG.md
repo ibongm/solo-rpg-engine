@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * TV Series / Movie genre (`tv_movie`): type a show, film or book universe (Jericho, The Walking Dead, Firefly, …) and press "Tailor to Universe" in the character creator or World Forge. The storyteller renames species, classes, backgrounds, skills, languages and spell terms for that universe and suggests a world prompt; the rules underneath stay D&D 5e.
 * `/api/world-forge` mode `mediaSkin` with `MEDIA_SKIN_SCHEMA`, `MEDIA_SKIN_RULES` and a mock. Generated skins are sanitized on the server and again on the client (`src/engine/mediaSkin.js`): names and flavor only, unknown keys and numbers dropped.
 * Characters store their `mediaSkin`; campaigns store it in `meta.mediaSkin` and take the universe's theme (`meta.themeOverride`), currency and skill names. Reskin helpers (`speciesName`, `className`, `backgroundName`, `genreTerms`, `languageName`, `availableLanguages`) accept an optional media skin.
+* Multi-format importers (`src/engine/importers.js`, `parseImportFile`): characters from D&D Beyond JSON, Roll20 5e OGL JSON, generic flat JSON (e.g. from a chatbot) and Markdown / plain-text sheets, alongside the native and Foundry VTT formats (Plutonium exports are Foundry actors). Class, species, skill and item names are matched to SRD ids (genre reskins included).
+* Campaign documents (Foundry VTT journal / adventure exports, Markdown or Obsidian notes with Region, Factions, Locations, Quests and NPCs sections) open the World Forge pre-filled with a world prompt and Lore Pinboard entries.
+* Import panel accepts `.json`, `.md` and `.txt` files or pasted text and shows the detected source. Unrecognized files offer "Smart Convert with AI" (`/api/world-forge` mode `convertImport`, `CONVERT_IMPORT_SCHEMA`); converted characters are shown for review before saving.
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.
@@ -62,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 * Forced `@grpc/grpc-js` to `^1.14.6` under `@firebase/firestore` via npm `overrides`, clearing GHSA-m9gg-hp2v-232j and GHSA-f596-whhp-79r4 (server-side advisories; the browser build never bundled grpc). `npm audit --omit=dev` now reports 0 vulnerabilities; remaining findings are dev-only Tailwind v3 tooling.
+* Imported characters (any format, including AI conversion) keep only their six ability scores, level, names, skills and items; HP, AC, hit die, proficiency and XP are recomputed by the engine (`characterFromParts`), and scores are clamped to 1–30, level to 1–20.
 
 ---
 

@@ -32,6 +32,7 @@ export default function GuildhallHub() {
   const [loading, setLoading] = useState(true);
   const [forging, setForging] = useState(false);
   const [ioOpen, setIoOpen] = useState(false);
+  const [forgeSeed, setForgeSeed] = useState(null);
 
   const reload = useCallback(async () => {
     if (!user) return;
@@ -116,14 +117,31 @@ export default function GuildhallHub() {
       {forging && (
         <WorldForgeWizard
           characters={characters}
-          onClose={() => setForging(false)}
+          initialSeed={forgeSeed}
+          onClose={() => {
+            setForging(false);
+            setForgeSeed(null);
+          }}
           onCreated={() => {
             setForging(false);
+            setForgeSeed(null);
             reload();
           }}
         />
       )}
-      {ioOpen && <ImportExportModal characters={characters} campaigns={campaigns} onClose={() => setIoOpen(false)} onImported={reload} />}
+      {ioOpen && (
+        <ImportExportModal
+          characters={characters}
+          campaigns={campaigns}
+          onClose={() => setIoOpen(false)}
+          onImported={reload}
+          onWorldSeed={(seed) => {
+            setIoOpen(false);
+            setForgeSeed(seed);
+            setForging(true);
+          }}
+        />
+      )}
     </div>
   );
 }

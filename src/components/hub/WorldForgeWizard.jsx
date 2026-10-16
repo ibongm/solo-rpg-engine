@@ -15,7 +15,8 @@ import { sanitizeMediaSkin } from '../../engine/mediaSkin.js';
 
 const STEPS = ['Genre & Skin', 'Tone & Rules', 'Hero & Prompt', 'Seed the World'];
 
-export default function WorldForgeWizard({ characters, onClose, onCreated }) {
+/** initialSeed: { title, prompt, lore[] } from an imported campaign document (see src/engine/importers.js). */
+export default function WorldForgeWizard({ characters, onClose, onCreated, initialSeed = null }) {
   const user = useGameStore((s) => s.user);
   const toast = useGameStore((s) => s.toast);
   const addSessionTelemetry = useGameStore((s) => s.addSessionTelemetry);
@@ -41,8 +42,8 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
   const [xpPace, setXpPace] = useState({ pace: 'standard', fineTune: 1 });
   const eligible = characters.filter((c) => c.status !== 'fallen' && !c.activeCampaignId);
   const [charId, setCharId] = useState(eligible[0]?.id || '');
-  const [prompt, setPrompt] = useState('');
-  const [lore, setLore] = useState([]);
+  const [prompt, setPrompt] = useState(initialSeed?.prompt || '');
+  const [lore, setLore] = useState(initialSeed?.lore || []);
   const [loreText, setLoreText] = useState('');
   const [seeding, setSeeding] = useState(false);
   const [seed, setSeed] = useState(null);

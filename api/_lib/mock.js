@@ -314,4 +314,15 @@ You arrive as strangers start showing up at the edge of town.`,
   };
 }
 
+/** Deterministic import conversion for VERTEX_MOCK runs. */
+export function mockConvertImport(body) {
+  const text = String(body.text || '');
+  const name = (/name\s*[:-]\s*([^\n]+)/i.exec(text)?.[1] || 'Imported Hero').trim().slice(0, 60);
+  return {
+    kind: 'character',
+    character: { name, level: 1, className: 'Fighter', speciesName: 'Human', stats: { str: 15, dex: 13, con: 14, int: 10, wis: 12, cha: 8 }, skills: ['Athletics'], inventory: [{ name: 'Longsword', quantity: 1 }], backstory: '', currency: 10 },
+    campaign: null,
+  };
+}
+
 export { MOCK_USAGE };

@@ -1,27 +1,35 @@
 import { useState } from 'react';
-import { ArrowDownUp, Download, Upload, FileJson, BookText, Printer, Swords } from 'lucide-react';
+import { ArrowDownUp, Download, Upload, FileJson, BookText, Printer, Swords, Sparkles, ClipboardPaste } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { createCharacterDoc, importCampaignBundle, loadCampaignSubcollections, getCharacter } from '../../firebase/db.js';
 import { buildSkin } from '../../config/genreSkins.js';
 import {
   exportCharacterBundle,
   exportCampaignBundle,
-  parseImportJson,
   campaignToMarkdown,
   toFoundryActor,
   downloadText,
   slugify,
 } from '../../engine/exporters.js';
+import { parseImportFile, fromAiConversion, UnrecognizedImportError } from '../../engine/importers.js';
+import { callApi } from '../../firebase/api.js';
+import { computeTextCost, DEFAULT_MODEL } from '../../config/models.js';
 import { Modal, Spinner } from '../common/ui.jsx';
 import PrintSheet from '../common/PrintSheet.jsx';
 
-export default function ImportExportModal({ characters, campaigns, onClose, onImported }) {
+/** onWorldSeed(seed): open the World Forge with an imported campaign document ({ title, prompt, lore[] }). */
+export default function ImportExportModal({ characters, campaigns, onClose, onImported, onWorldSeed }) {
   const user = useGameStore((s) => s.user);
   const toast = useGameStore((s) => s.toast);
   const [charId, setCharId] = useState(characters[0]?.id || '');
   const [campId, setCampId] = useState(campaigns[0]?.id || '');
   const [busy, setBusy] = useState('');
   const [printing, setPrinting] = useState(null);
+  const [pasted, setPasted] = useState('');
+  const [lastSource, setLastSource] = useState(null);
+  const [unrecognized, setUnrecognized] = useState(null); // { text, filename, message }
+  const [review, setReview] = useState(null); // AI-converted character awaiting confirmation
+  const addSessionTelemetry = useGameStore((s) => s.addSessionTelemetry);
 
   const character = characters.find((c) => c.id === charId);
   const campaign = campaigns.find((c) => c.id === campId);
@@ -65,19 +73,50 @@ export default function ImportExportModal({ characters, campaigns, onClose, onIm
       downloadText(`${slugify(campaign.meta.title)}.storybook.md`, campaignToMarkdown({ campaign, ...parts }), 'text/markdown');
     });
 
-  const importFile = (file) =>
-    run('import', async () => {
-      if (!file) return;
-      const text = await file.text();
-      const parsed = parseImportJson(text);
-      if (parsed.kind === 'character') {
-        await createCharacterDoc(user.uid, parsed.data);
-        toast(`Imported character ${parsed.data.name}${parsed.source === 'foundry' ? ' from 5e VTT JSON' : ''}.`, 'success');
-      } else {
-        await importCampaignBundle(user.uid, parsed.data);
-        toast(`Imported campaign “${parsed.data.campaign.meta.title}”.`, 'success');
-      }
+  /** Saves a parsed import: characters and native campaigns are created; campaign documents open the World Forge. */
+  const commitImport = async (parsed) => {
+    if (parsed.kind === 'character') {
+      await createCharacterDoc(user.uid, parsed.data);
+      toast(`Imported ${parsed.data.name} (${parsed.sourceLabel}).`, 'success');
       onImported();
+    } else if (parsed.kind === 'campaign') {
+      await importCampaignBundle(user.uid, parsed.data);
+      toast(`Imported campaign “${parsed.data.campaign.meta.title}”.`, 'success');
+      onImported();
+    } else if (parsed.kind === 'worldSeed') {
+      toast(`Opening the World Forge with “${parsed.data.title}” (${parsed.sourceLabel}).`, 'success');
+      onWorldSeed?.(parsed.data);
+    }
+    setLastSource(parsed.sourceLabel);
+  };
+
+  const importText = (text, filename) =>
+    run('import', async () => {
+      setUnrecognized(null);
+      setReview(null);
+      try {
+        await commitImport(parseImportFile(text, filename));
+      } catch (err) {
+        if (err instanceof UnrecognizedImportError) setUnrecognized({ text, filename, message: err.message });
+        else throw err;
+      }
+    });
+
+  const importFile = async (file) => {
+    if (!file) return;
+    importText(await file.text(), file.name);
+  };
+
+  const smartConvert = () =>
+    run('ai', async () => {
+      const res = await callApi('world-forge', { mode: 'convertImport', model: DEFAULT_MODEL, text: unrecognized.text.slice(0, 60000), filename: unrecognized.filename }, { timeoutMs: 120_000 });
+      const cost = computeTextCost(res.model, res.usage || {});
+      addSessionTelemetry({ inputTokens: res.usage?.inputTokens, outputTokens: res.usage?.outputTokens, cachedTokens: res.usage?.cachedTokens, costUSD: cost });
+      const converted = fromAiConversion(res.result);
+      setUnrecognized(null);
+      // Characters are reviewed before saving; campaign documents go straight to the World Forge (also reviewable there).
+      if (converted.kind === 'character') setReview(converted);
+      else await commitImport(converted);
     });
 
   return (
@@ -139,12 +178,63 @@ export default function ImportExportModal({ characters, campaigns, onClose, onIm
 
         <section className="card-inset p-4">
           <h3 className="section-title mb-2">Import</h3>
-          <p className="mb-3 text-sm text-muted">Native character or campaign bundles, or a Foundry VTT dnd5e actor export. Imports always create new copies.</p>
+          <p className="mb-3 text-sm text-muted">
+            Characters from Solo RPG Engine, Foundry VTT (incl. Plutonium), D&D Beyond, Roll20, generic JSON or a Markdown / text sheet. Campaigns from a native backup, a Foundry journal or a Markdown document. Imports always create new copies; HP, AC and XP are recomputed by the engine.
+          </p>
           <label className={`btn-primary cursor-pointer ${busy ? 'pointer-events-none opacity-60' : ''}`}>
-            {busy === 'import' ? <Spinner /> : <Upload className="h-4 w-4" />} Choose .json file
-            <input type="file" accept=".json,application/json" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} />
+            {busy === 'import' ? <Spinner /> : <Upload className="h-4 w-4" />} Choose file (.json, .md, .txt)
+            <input type="file" accept=".json,.md,.markdown,.txt,application/json,text/markdown,text/plain" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} />
           </label>
-          <p className="mt-3 text-xs text-muted">Markdown lore can be imported inside the World Forge wizard.</p>
+          <textarea
+            className="input mt-3 min-h-[90px] text-base sm:text-xs"
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
+            placeholder="…or paste a character sheet or campaign notes here"
+            aria-label="Paste text to import"
+          />
+          <button className="btn mt-2 w-full" onClick={() => importText(pasted, 'pasted.txt')} disabled={Boolean(busy) || !pasted.trim()}>
+            <ClipboardPaste className="h-4 w-4" /> Import pasted text
+          </button>
+          {lastSource && <p className="mt-2 text-xs">Detected: <span className="pill py-0">{lastSource}</span></p>}
+          {unrecognized && (
+            <div className="mt-3 rounded-theme border-theme border-warning/60 bg-warning/10 p-2 text-xs">
+              <p>{unrecognized.message}</p>
+              <button className="btn-primary mt-2 w-full" onClick={smartConvert} disabled={Boolean(busy)}>
+                {busy === 'ai' ? <Spinner /> : <Sparkles className="h-4 w-4" />} Smart Convert with AI
+              </button>
+              <p className="mt-1 text-muted">The storyteller extracts names, scores and items; the engine rebuilds the rest. You review it before saving.</p>
+            </div>
+          )}
+          {review && (
+            <div className="mt-3 rounded-theme border-theme border-accent/60 bg-accent/5 p-2 text-xs">
+              <p className="font-semibold">
+                {review.data.name} — Level {review.data.level} {review.data.speciesName ? `${review.data.speciesName} ` : ''}
+                {review.data.classOrArchetype}
+              </p>
+              <p className="font-mono text-muted">
+                {Object.entries(review.data.stats).map(([k, v]) => `${k.toUpperCase()} ${v}`).join(' · ')} · HP {review.data.vitals.maxHp} · d{review.data.hitDie}
+              </p>
+              {review.data.skillProficiencies.length > 0 && <p className="text-muted">Skills: {review.data.skillProficiencies.join(', ')}</p>}
+              {review.data.inventory.length > 0 && <p className="text-muted">Items: {review.data.inventory.map((i) => i.name).join(', ')}</p>}
+              <div className="mt-2 flex gap-2">
+                <button
+                  className="btn-primary flex-1"
+                  disabled={Boolean(busy)}
+                  onClick={() =>
+                    run('import', async () => {
+                      await commitImport(review);
+                      setReview(null);
+                    })
+                  }
+                >
+                  Save character
+                </button>
+                <button className="btn" onClick={() => setReview(null)}>
+                  Discard
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
       {printing && <PrintSheet character={printing} skin={buildSkin(printing.genre)} onClose={() => setPrinting(null)} />}

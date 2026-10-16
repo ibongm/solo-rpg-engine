@@ -379,3 +379,40 @@ export const MEDIA_SKIN_SCHEMA = {
     worldPromptSuggestion: S('Two paragraphs: a ready-to-use world prompt for a solo campaign in this universe.'),
   },
 };
+
+/** AI import fallback: raw fields extracted from an unstructured sheet or module. The engine recomputes everything else. */
+export const CONVERT_IMPORT_SCHEMA = {
+  type: 'OBJECT',
+  required: ['kind'],
+  properties: {
+    kind: { type: 'STRING', enum: ['character', 'campaign'] },
+    character: {
+      type: 'OBJECT',
+      nullable: true,
+      properties: {
+        name: S(),
+        level: I(),
+        className: S(),
+        speciesName: S(),
+        stats: { type: 'OBJECT', properties: Object.fromEntries(ABILITIES.map((a) => [a, I('Ability score as written in the source (3-20 usually).')])) },
+        skills: { type: 'ARRAY', items: S() },
+        inventory: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: S(), quantity: I() } } },
+        backstory: S(),
+        currency: I('Gold pieces or the setting equivalent, if stated.'),
+      },
+    },
+    campaign: {
+      type: 'OBJECT',
+      nullable: true,
+      properties: {
+        title: S(),
+        summary: S('The premise and setting in one or two paragraphs.'),
+        factions: { type: 'ARRAY', items: S() },
+        locations: { type: 'ARRAY', items: S() },
+        npcs: { type: 'ARRAY', items: S() },
+        quests: { type: 'ARRAY', items: S() },
+        lore: { type: 'ARRAY', items: S('A self-contained lore fact.') },
+      },
+    },
+  },
+};

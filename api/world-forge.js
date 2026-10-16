@@ -4,12 +4,14 @@
  *                   nearby nodes, main quest (unless quests are off), opening scene.
  *  mode "perkTree": Custom 5-tier Perk Tree generator for a character concept.
  *  mode "mediaSkin": TV series / movie universe skin (names only) for the tv_movie genre.
+ *  mode "convertImport": AI fallback that extracts raw character/campaign fields from an unknown file;
+ *                   the client engine rebuilds everything derived (src/engine/importers.js).
  */
 import { withHandler, HttpError, isMock, requireString } from './_lib/http.js';
 import { generateStructured } from './_lib/vertex.js';
-import { worldSeedSchema, PERK_TREE_SCHEMA, MEDIA_SKIN_SCHEMA } from './_lib/schemas.js';
-import { WORLD_FORGE_RULES, PERK_TREE_RULES, MEDIA_SKIN_RULES, renderWorldForgeRequest, renderPerkTreeRequest, renderMediaSkinRequest } from './_lib/prompts.js';
-import { mockWorldSeed, mockPerkTree, mockMediaSkin, MOCK_USAGE } from './_lib/mock.js';
+import { worldSeedSchema, PERK_TREE_SCHEMA, MEDIA_SKIN_SCHEMA, CONVERT_IMPORT_SCHEMA } from './_lib/schemas.js';
+import { WORLD_FORGE_RULES, PERK_TREE_RULES, MEDIA_SKIN_RULES, CONVERT_IMPORT_RULES, renderWorldForgeRequest, renderPerkTreeRequest, renderMediaSkinRequest, renderConvertImportRequest } from './_lib/prompts.js';
+import { mockWorldSeed, mockPerkTree, mockMediaSkin, mockConvertImport, MOCK_USAGE } from './_lib/mock.js';
 import { sanitizeMediaSkin } from '../src/engine/mediaSkin.js';
 import { HEAVY_MODEL, DEFAULT_MODEL, isValidModel } from '../src/config/models.js';
 import { SKILL_KEYS } from '../src/config/genreSkins.js';
@@ -62,5 +64,19 @@ export default withHandler(async ({ body }) => {
     if (!result) throw new HttpError(502, 'The storyteller returned an unusable universe skin. Try again.');
     return { result, usage, model };
   }
-  throw new HttpError(400, 'mode must be "seed", "perkTree" or "mediaSkin".');
+  if (mode === 'convertImport') {
+    requireString(body.text, 'text', 60_000);
+    const model = isValidModel(body.model) ? body.model : DEFAULT_MODEL;
+    if (isMock()) return { result: mockConvertImport(body), usage: MOCK_USAGE, model, mock: true };
+    const { data, usage } = await generateStructured({
+      modelId: model,
+      systemInstruction: CONVERT_IMPORT_RULES,
+      dynamicText: renderConvertImportRequest(body),
+      schema: CONVERT_IMPORT_SCHEMA,
+      temperature: 0.2,
+      maxOutputTokens: 6000,
+    });
+    return { result: data, usage, model };
+  }
+  throw new HttpError(400, 'mode must be "seed", "perkTree", "mediaSkin" or "convertImport".');
 });
