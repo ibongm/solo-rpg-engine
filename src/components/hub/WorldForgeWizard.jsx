@@ -11,6 +11,7 @@ import { markdownToLoreEntries } from '../../engine/exporters.js';
 import { Modal, Slider, SegmentedControl, Spinner, fmtUSD, Tooltip } from '../common/ui.jsx';
 import XpPaceControls from '../common/XpPaceControls.jsx';
 import { help } from '../../config/helpTooltips.js';
+import { sanitizeMediaSkin } from '../../engine/mediaSkin.js';
 
 const STEPS = ['Genre & Skin', 'Tone & Rules', 'Hero & Prompt', 'Seed the World'];
 
@@ -47,15 +48,51 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
   const [seed, setSeed] = useState(null);
   const [seedCost, setSeedCost] = useState({ usage: null, cost: 0 });
   const [creating, setCreating] = useState(false);
+  const [mediaSkin, setMediaSkin] = useState(null);
+  const [mediaTitle, setMediaTitle] = useState('');
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const media = genre === 'tv_movie' ? mediaSkin : null;
 
   const genreDef = GENRES[genre];
-  const skin = useMemo(() => buildSkin(genre, { currencyLabel, skillLabels: skillOverrides }), [genre, currencyLabel, skillOverrides]);
+  const skin = useMemo(() => buildSkin(genre, { currencyLabel, rationLabel: media?.rationLabel, skillLabels: skillOverrides }), [genre, currencyLabel, skillOverrides, media]);
   const character = characters.find((c) => c.id === charId);
+
+  /** Applies a universe skin: its currency and skill names, and its world prompt if none is written yet. */
+  const applyMedia = (m) => {
+    setMediaSkin(m);
+    setMediaTitle(m?.title || '');
+    if (!m) return;
+    setCurrencyLabel(m.currencyLabel.slice(0, 20));
+    setSkillOverrides(m.skillLabels || {});
+    if (m.worldPromptSuggestion) setPrompt((p) => (p.trim() ? p : m.worldPromptSuggestion.slice(0, 3500)));
+  };
 
   const pickGenre = (g) => {
     setGenre(g);
     setCurrencyLabel(GENRES[g].currencyLabel);
     setSkillOverrides({});
+    // A TV / movie hero brings their universe along.
+    if (g === 'tv_movie' && !mediaSkin && character?.mediaSkin) applyMedia(character.mediaSkin);
+    else if (g === 'tv_movie' && mediaSkin) applyMedia(mediaSkin);
+  };
+
+  const tailorToUniverse = async () => {
+    if (!mediaTitle.trim()) return;
+    setMediaBusy(true);
+    try {
+      const res = await callApi('world-forge', { mode: 'mediaSkin', mediaTitle: mediaTitle.trim() });
+      const clean = sanitizeMediaSkin(res.result);
+      if (!clean) throw new Error('No usable names came back.');
+      applyMedia(clean);
+      const cost = computeTextCost(res.model, res.usage || {});
+      addSessionTelemetry({ inputTokens: res.usage?.inputTokens, outputTokens: res.usage?.outputTokens, cachedTokens: res.usage?.cachedTokens, costUSD: cost });
+      setSeedCost((prev) => ({ ...prev, cost: prev.cost + cost }));
+      toast(`Tailored to ${clean.title}.`, 'success');
+    } catch (err) {
+      toast(`Could not tailor to that universe: ${err.message}`, 'error');
+    } finally {
+      setMediaBusy(false);
+    }
   };
 
   const importMarkdownFile = async (file) => {
@@ -82,7 +119,7 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
           mode: 'seed',
           model: seedModel,
           genre,
-          genreLabel: genreDef.label,
+          genreLabel: media ? `${genreDef.label}: ${media.title}` : genreDef.label,
           tone,
           strictness,
           currencyLabel,
@@ -125,6 +162,7 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
         xpMode,
         xpPace: xpPace.pace,
         xpMultiplier: xpPace.fineTune,
+        mediaSkin: media,
       });
       campaign.telemetry = {
         totalInputTokens: seedCost.usage?.inputTokens || 0,
@@ -191,6 +229,29 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
               </button>
             ))}
           </div>
+          {genre === 'tv_movie' && (
+            <div className="card-inset mt-4 space-y-2 p-3">
+              <label className="label" htmlFor="wf-media">
+                TV Series / Movie Universe
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="wf-media"
+                  className="input flex-1"
+                  value={mediaTitle}
+                  onChange={(e) => setMediaTitle(e.target.value)}
+                  maxLength={200}
+                  placeholder="e.g. Jericho, The Walking Dead, Firefly, The Expanse, Deadwood"
+                />
+                <button className="btn-primary shrink-0" onClick={tailorToUniverse} disabled={mediaBusy || !mediaTitle.trim()}>
+                  {mediaBusy ? <Spinner /> : null} Tailor to Universe
+                </button>
+              </div>
+              <p className="text-xs text-muted">
+                {mediaSkin ? `Tailored to ${mediaSkin.title}: currency, skill names, theme and a starting world prompt.` : 'Sets the currency, skill names, look and a suggested world prompt for that universe.'}
+              </p>
+            </div>
+          )}
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <div>
               <label className="label" htmlFor="wf-cur">Currency label</label>

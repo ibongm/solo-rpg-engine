@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Global Almanac on every screen (floating button, `Alt+A`, or `?` when not typing): a non-blocking, draggable window on desktop and a bottom sheet that minimizes to a pill on phones. Tabs: Rules (incl. conditions and XP pacing), Origins & Roles, Gear & Arsenal (prices in the genre's currency), Powers (all 319 spells, levels 0–9) and, during a campaign, the World Codex (people, places, factions, rumors, Lore Pinboard). One search box covers everything; a genre selector shows reskinned names with the SRD name alongside.
 * Pop-out Almanac (`/?almanac=1`): opens in its own browser window without signing in and follows the main window's genre and campaign over `BroadcastChannel('solo-rpg-almanac')`.
 * `src/engine/almanac.js` (`buildAlmanacIndex`, `searchAlmanac`) and `src/config/rulesReference.js`.
+* TV Series / Movie genre (`tv_movie`): type a show, film or book universe (Jericho, The Walking Dead, Firefly, …) and press "Tailor to Universe" in the character creator or World Forge. The storyteller renames species, classes, backgrounds, skills, languages and spell terms for that universe and suggests a world prompt; the rules underneath stay D&D 5e.
+* `/api/world-forge` mode `mediaSkin` with `MEDIA_SKIN_SCHEMA`, `MEDIA_SKIN_RULES` and a mock. Generated skins are sanitized on the server and again on the client (`src/engine/mediaSkin.js`): names and flavor only, unknown keys and numbers dropped.
+* Characters store their `mediaSkin`; campaigns store it in `meta.mediaSkin` and take the universe's theme (`meta.themeOverride`), currency and skill names. Reskin helpers (`speciesName`, `className`, `backgroundName`, `genreTerms`, `languageName`, `availableLanguages`) accept an optional media skin.
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.

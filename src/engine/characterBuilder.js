@@ -7,6 +7,7 @@ import { ABILITIES, SKILL_KEYS } from '../config/genreSkins.js';
 import { ITEMS, ITEM_FILTERS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, FIGHTING_STYLES, DRAGON_ANCESTRIES } from '../config/srd.js';
 import { speciesName, className, backgroundName, itemName, genreTerms, languageName } from '../config/srdReskins.js';
 import { GENRES } from '../config/genreSkins.js';
+import { sanitizeMediaSkin } from './mediaSkin.js';
 import { abilityMod } from './progression.js';
 import { uid, rollDie, getDefaultRng } from './rng.js';
 import { CLASS_SPELL_LISTS } from '../config/spells.js';
@@ -316,12 +317,14 @@ function toolLabel(t, genre) {
  */
 export function buildSrdCharacter(build) {
   const genre = build.genre || 'fantasy';
+  // TV / movie universe skin (names only, already sanitized); null for every other genre.
+  const media = genre === 'tv_movie' ? sanitizeMediaSkin(build.mediaSkin) : null;
   const genreDef = GENRES[genre] || GENRES.fantasy;
   const sp = SPECIES_BY_ID[build.speciesId];
   const cls = CLASSES_BY_ID[build.classId];
   const bg = BACKGROUNDS_BY_ID[build.backgroundId];
   if (!sp || !cls || !bg) throw new Error('Incomplete character build.');
-  const terms = genreTerms(genre);
+  const terms = genreTerms(genre, media);
 
   const stats = finalAbilityScores(build.baseStats, sp.id, build.flexibleBonuses);
   const granted = grantedSkills({ speciesId: sp.id, backgroundId: bg.id, speciesSkillChoices: build.speciesSkills, backgroundSkillChoices: build.backgroundSkills });
@@ -341,16 +344,16 @@ export function buildSrdCharacter(build) {
   ].map((t) => toolLabel(t, genre));
 
   // Stored in the genre's own words (like tools), so every consumer — sheet, print, storyteller — reads them as-is.
-  const languages = Array.from(new Set([...(sp.languages || []), ...(cls.extraLanguages || []), ...(build.languages || [])].map((l) => languageName(l, genre)))).slice(0, 8);
+  const languages = Array.from(new Set([...(sp.languages || []), ...(cls.extraLanguages || []), ...(build.languages || [])].map((l) => languageName(l, genre, media)))).slice(0, 8);
 
   const ancestry = sp.ancestryChoice ? DRAGON_ANCESTRIES.find((d) => d.id === build.dragonAncestry) : null;
   const style = cls.fightingStyle ? FIGHTING_STYLES.find((f) => f.id === build.fightingStyle) : null;
   const features = [
-    ...sp.traits.map(([name, description]) => ({ name, description, source: speciesName(sp.id, genre) })),
-    ...(ancestry ? [{ name: `${ancestry.name} Ancestry`, description: `Breath weapon and resistance: ${ancestry.damage}.`, source: speciesName(sp.id, genre) }] : []),
-    ...cls.features.map(([name, description]) => ({ name, description, source: className(cls.id, genre) })),
-    ...(style ? [{ name: `Fighting Style: ${style.name}`, description: style.text, source: className(cls.id, genre) }] : []),
-    { name: bg.feature[0], description: bg.feature[1], source: backgroundName(bg.id, genre) },
+    ...sp.traits.map(([name, description]) => ({ name, description, source: speciesName(sp.id, genre, media) })),
+    ...(ancestry ? [{ name: `${ancestry.name} Ancestry`, description: `Breath weapon and resistance: ${ancestry.damage}.`, source: speciesName(sp.id, genre, media) }] : []),
+    ...cls.features.map(([name, description]) => ({ name, description, source: className(cls.id, genre, media) })),
+    ...(style ? [{ name: `Fighting Style: ${style.name}`, description: style.text, source: className(cls.id, genre, media) }] : []),
+    { name: bg.feature[0], description: bg.feature[1], source: backgroundName(bg.id, genre, media) },
   ];
 
   const now = Date.now();
@@ -358,13 +361,14 @@ export function buildSrdCharacter(build) {
     rules: RULES_ID,
     name: String(build.name || 'Nameless').trim().slice(0, 60),
     genre,
-    classOrArchetype: className(cls.id, genre),
+    mediaSkin: media,
+    classOrArchetype: className(cls.id, genre, media),
     speciesId: sp.id,
-    speciesName: speciesName(sp.id, genre),
+    speciesName: speciesName(sp.id, genre, media),
     classId: cls.id,
     subclass: cls.subclass || null,
     backgroundId: bg.id,
-    backgroundName: backgroundName(bg.id, genre),
+    backgroundName: backgroundName(bg.id, genre, media),
     terms,
     level: 1,
     xp: 0,
@@ -402,7 +406,7 @@ export function buildSrdCharacter(build) {
       deathSaves: { successes: 0, failures: 0 },
       conditions: [],
     },
-    currency: { amount: Math.max(0, Math.floor(Number(build.currency) || 0)), label: genreDef.currencyLabel },
+    currency: { amount: Math.max(0, Math.floor(Number(build.currency) || 0)), label: media?.currencyLabel || genreDef.currencyLabel },
     customPerkTree: build.customPerkTree || [],
     inventory: [],
     companionRoster: [],

@@ -7,6 +7,7 @@ import { ABILITIES, ABILITY_LABELS, GENRES, GENRE_IDS, SKILL_KEYS, SKILLS, build
 import { DEFAULT_MODEL, computeTextCost } from '../../config/models.js';
 import { SPECIES, CLASSES, BACKGROUNDS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, FIGHTING_STYLES, DRAGON_ANCESTRIES, ITEMS, WEAPONS, ARMOR, GEAR, ANY_LABELS } from '../../config/srd.js';
 import { help } from '../../config/helpTooltips.js';
+import { sanitizeMediaSkin, mediaSkinOverrides } from '../../engine/mediaSkin.js';
 import { genreTerms, speciesName, speciesBlurb, className, backgroundName, itemName, itemLabel, languageName, availableLanguages } from '../../config/srdReskins.js';
 import { POINT_BUY_BUDGET, POINT_BUY_COSTS, STANDARD_ARRAY, abilityMod, pointBuyCost, roll4d6DropLowest, normalizePerkTree } from '../../engine/progression.js';
 import {
@@ -48,6 +49,12 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
   // Concept
   const [name, setName] = useState(initial?.name || '');
   const [genre, setGenre] = useState(initial?.genre || 'fantasy');
+  const [mediaSkin, setMediaSkin] = useState(initial?.mediaSkin || null);
+  const [mediaTitle, setMediaTitle] = useState(initial?.mediaSkin?.title || '');
+  const [mediaNotes, setMediaNotes] = useState('');
+  const [mediaBusy, setMediaBusy] = useState(false);
+  // TV / movie universe names (null for every other genre).
+  const media = genre === 'tv_movie' ? mediaSkin : null;
   // The Almanac follows the genre on screen while no campaign is open.
   useEffect(() => {
     useGameStore.getState().setAlmanacGenre(genre);
@@ -93,8 +100,8 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
   const [perkBusy, setPerkBusy] = useState(false);
 
   const genreDef = GENRES[genre] || GENRES.fantasy;
-  const skin = useMemo(() => buildSkin(genre), [genre]);
-  const terms = genreTerms(genre);
+  const skin = useMemo(() => buildSkin(genre, mediaSkinOverrides(media)), [genre, media]);
+  const terms = genreTerms(genre, media);
   const sp = SPECIES_BY_ID[speciesId];
   const cls = CLASSES_BY_ID[classId];
   const bg = BACKGROUNDS_BY_ID[backgroundId];
@@ -136,6 +143,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
   const build = {
     name,
     genre,
+    mediaSkin: media,
     speciesId,
     classId,
     backgroundId,
@@ -230,14 +238,14 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
     setPerkBusy(true);
     try {
       const ranked = ABILITIES.slice().sort((a, b) => finalStats[b] - finalStats[a]);
-      const archetype = canRebuild ? className(classId, genre) : initial.classOrArchetype;
+      const archetype = canRebuild ? className(classId, genre, media) : initial.classOrArchetype;
       const res = await callApi('world-forge', {
         mode: 'perkTree',
         model: DEFAULT_MODEL,
         genre,
         genreLabel: genreDef.label,
         classOrArchetype: archetype,
-        concept: `${name}, a ${canRebuild ? `${speciesName(speciesId, genre)} ` : ''}${archetype}. ${backstory}`.slice(0, 1900),
+        concept: `${name}, a ${canRebuild ? `${speciesName(speciesId, genre, media)} ` : ''}${archetype}. ${backstory}`.slice(0, 1900),
         primaryAbilities: ranked.slice(0, 3).map((a) => ABILITY_LABELS[a]),
       });
       setPerks(normalizePerkTree(res.result?.perks));
@@ -248,6 +256,25 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
       toast(`Perk Tree generation failed: ${err.message}`, 'error');
     } finally {
       setPerkBusy(false);
+    }
+  };
+
+  const tailorToUniverse = async () => {
+    if (!mediaTitle.trim()) return;
+    setMediaBusy(true);
+    try {
+      const res = await callApi('world-forge', { mode: 'mediaSkin', mediaTitle: mediaTitle.trim(), mediaNotes: mediaNotes.trim() || undefined });
+      const clean = sanitizeMediaSkin(res.result);
+      if (!clean) throw new Error('No usable names came back.');
+      setMediaSkin(clean);
+      setLanguages([]);
+      const cost = computeTextCost(res.model, res.usage || {});
+      addSessionTelemetry({ inputTokens: res.usage?.inputTokens, outputTokens: res.usage?.outputTokens, cachedTokens: res.usage?.cachedTokens, costUSD: cost });
+      toast(`Tailored to ${clean.title}.`, 'success');
+    } catch (err) {
+      toast(`Could not tailor to that universe: ${err.message}`, 'error');
+    } finally {
+      setMediaBusy(false);
     }
   };
 
@@ -334,6 +361,41 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
             </select>
             <p className="mt-1 text-xs text-muted">D&D 5e (SRD 5.1) rules underneath; names are reskinned to the genre.</p>
           </div>
+          {genre === 'tv_movie' && (
+            <div className="card-inset space-y-2 p-3 md:col-span-2">
+              <label className="label" htmlFor="cc-media">
+                TV Series / Movie Universe
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="cc-media"
+                  className="input flex-1 text-base sm:text-sm"
+                  value={mediaTitle}
+                  onChange={(e) => setMediaTitle(e.target.value)}
+                  maxLength={200}
+                  placeholder="e.g. Jericho, The Walking Dead, Firefly, The Expanse, Deadwood"
+                  disabled={!canRebuild}
+                />
+                <button className="btn-primary shrink-0" onClick={tailorToUniverse} disabled={!canRebuild || mediaBusy || !mediaTitle.trim()}>
+                  {mediaBusy ? <Spinner /> : null} Tailor to Universe
+                </button>
+              </div>
+              <input
+                className="input text-base sm:text-sm"
+                value={mediaNotes}
+                onChange={(e) => setMediaNotes(e.target.value)}
+                maxLength={2000}
+                placeholder="Optional notes: season, setting, tone (e.g. small Kansas town after nuclear attacks)"
+                disabled={!canRebuild}
+                aria-label="Universe notes"
+              />
+              <p className="text-xs text-muted">
+                {mediaSkin
+                  ? `Tailored to ${mediaSkin.title}: ${['human', 'dwarf', 'elf'].map((id) => mediaSkin.species?.[id]?.name).filter(Boolean).join(', ')}… The rules underneath stay D&D 5e.`
+                  : 'The storyteller renames species, classes, backgrounds, skills and languages for that universe. Only names change.'}
+              </p>
+            </div>
+          )}
           <div className="md:col-span-2">
             <label className="label" htmlFor="cc-portrait">Portrait URL (optional)</label>
             <input id="cc-portrait" className="input text-base sm:text-sm" value={portraitUrl} onChange={(e) => setPortraitUrl(e.target.value)} placeholder="https://…" />
@@ -353,10 +415,10 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
                 key={s.id}
                 selected={speciesId === s.id}
                 onClick={() => pickSpecies(s.id)}
-                title={speciesName(s.id, genre)}
-                subtitle={speciesName(s.id, genre) !== s.name ? s.name : null}
+                title={speciesName(s.id, genre, media)}
+                subtitle={speciesName(s.id, genre, media) !== s.name ? s.name : null}
                 meta={`${Object.entries(s.abilityBonuses).map(([a, v]) => `${a.toUpperCase()} +${v}`).join(' ')}${s.flexibleBonuses ? ` +1 ×${s.flexibleBonuses.count}` : ''} · ${s.speed} ft${s.size === 'small' ? ' · Small' : ''}`}
-                blurb={speciesBlurb(s.id, genre)}
+                blurb={speciesBlurb(s.id, genre, media)}
               />
             ))}
           </div>
@@ -409,7 +471,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
                   </select>
                 </div>
               )}
-              <p className="text-xs text-muted">Languages: {sp.languages.map((l) => languageName(l, genre)).join(', ')}{sp.extraLanguages ? ` + ${sp.extraLanguages} of your choice (pick in the ${terms.background} step)` : ''}.</p>
+              <p className="text-xs text-muted">Languages: {sp.languages.map((l) => languageName(l, genre, media)).join(', ')}{sp.extraLanguages ? ` + ${sp.extraLanguages} of your choice (pick in the ${terms.background} step)` : ''}.</p>
             </div>
           )}
         </div>
@@ -423,8 +485,8 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
                 key={c.id}
                 selected={classId === c.id}
                 onClick={() => pickClass(c.id)}
-                title={className(c.id, genre)}
-                subtitle={className(c.id, genre) !== c.name ? c.name : null}
+                title={className(c.id, genre, media)}
+                subtitle={className(c.id, genre, media) !== c.name ? c.name : null}
                 meta={`d${c.hitDie} · saves ${c.savingThrows.map((a) => a.toUpperCase()).join('/')} · ${c.spellcasting ? `${terms.spells} (${c.spellcasting.ability.toUpperCase()})` : 'martial'}`}
                 blurb={`Best with high ${c.primary.map((a) => ABILITY_LABELS[a]).join(' & ')}.`}
               />
@@ -490,7 +552,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
           bonuses={speciesBonusSummary(speciesId, flexible)}
           finalStats={finalStats}
           primary={cls?.primary || []}
-          speciesLabel={speciesName(speciesId, genre)}
+          speciesLabel={speciesName(speciesId, genre, media)}
         />
       )}
 
@@ -502,8 +564,8 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
                 key={b.id}
                 selected={backgroundId === b.id}
                 onClick={() => pickBackground(b.id)}
-                title={backgroundName(b.id, genre)}
-                subtitle={backgroundName(b.id, genre) !== b.name ? b.name : null}
+                title={backgroundName(b.id, genre, media)}
+                subtitle={backgroundName(b.id, genre, media) !== b.name ? b.name : null}
                 meta={b.skills ? b.skills.map((k) => skillLabel(k, skin)).join(', ') : 'Any 2 skills'}
                 blurb={`${b.feature[0]}: ${b.feature[1]}`}
               />
@@ -528,7 +590,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
               </p>
               {extraLanguageCount > 0 && (
                 <PickRow label={`Extra languages (${languages.length}/${extraLanguageCount})`}>
-                  {availableLanguages(genre).filter((l) => !(sp?.languages || []).some((own) => languageName(own, genre) === l)).map((l) => (
+                  {availableLanguages(genre, media).filter((l) => !(sp?.languages || []).some((own) => languageName(own, genre, media) === l)).map((l) => (
                     <Chip key={l} on={languages.includes(l)} onClick={() => setLanguages(toggleIn(languages, l, extraLanguageCount))}>
                       {l}
                     </Chip>
@@ -552,7 +614,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
               )) : <span className="text-xs text-muted">None yet.</span>}
             </div>
           </div>
-          <PickRow label={`${className(classId, genre)} skills — pick ${cls.skillCount} (${classPicks.length}/${cls.skillCount})`}>
+          <PickRow label={`${className(classId, genre, media)} skills — pick ${cls.skillCount} (${classPicks.length}/${cls.skillCount})`}>
             {classSkillList(classId)
               .filter((k) => !granted.includes(k))
               .map((k) => (
@@ -606,7 +668,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
           genre={genre}
           terms={terms}
           finalStats={finalStats}
-          speciesLabel={speciesName(speciesId, genre)}
+          speciesLabel={speciesName(speciesId, genre, media)}
           cantripPicks={cantripPicks}
           setCantripPicks={setCantripPicks}
           knownPicks={knownPicks}

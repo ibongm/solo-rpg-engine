@@ -249,3 +249,13 @@ export function renderArchivistRequest(body) {
   if (body.currentState) lines.push(`Current state: ${clip(body.currentState, 1200)}`);
   return lines.join('\n');
 }
+
+export const MEDIA_SKIN_RULES = `You adapt a solo tabletop RPG (D&D 5e rules under the hood) to a TV series, film or book universe the player names.
+Rename the 9 SRD species as upbringings or peoples that exist in that universe, the 12 classes as roles or archetypes from it, and the 10 backgrounds as pasts characters there could have. Keep each mapping close in spirit to the SRD original (the fighter stays the best combatant, the wizard the most knowledgeable, the cleric the healer) because the mechanics do not change.
+Rename the 18 skills only where the universe has a natural word; otherwise keep the standard name. Pick terms for "species", "class", "background", "spells", "cantrips" and "spell" that fit (for a world without magic, call powers training, tricks or tech).
+Give 10 languages, dialects or codes heard there, the common tongue first. Pick the closest visual theme. Write a two-paragraph world prompt for a fresh solo campaign set there.
+Names and flavor only: never output numbers, statistics, dice or rules. Avoid quoting dialogue or long text from the work.`;
+
+export function renderMediaSkinRequest(body) {
+  return [`Universe: ${clip(body.mediaTitle, 200)}`, body.mediaNotes ? `Player notes: ${clip(body.mediaNotes, 2000)}` : ''].filter(Boolean).join('\n');
+}

@@ -13,6 +13,7 @@
  *     ROLL_TARGETS enum (live testing showed free-form strings and runaway output otherwise).
  */
 import { SKILL_KEYS, ABILITIES } from '../../src/config/genreSkins.js';
+import { MEDIA_SPECIES_IDS, MEDIA_CLASS_IDS, MEDIA_BACKGROUND_IDS, MEDIA_TERM_KEYS } from '../../src/engine/mediaSkin.js';
 
 /** Canonical roll targets the engine understands. Constraining decoding to this enum keeps the
  * storyteller from inventing free-form skill strings (observed live with gemini-3.8-flash). */
@@ -358,3 +359,23 @@ export function worldSeedSchema({ questsEnabled = true } = {}) {
   delete properties.main_quest;
   return { ...WORLD_SEED_SCHEMA, properties, required: WORLD_SEED_SCHEMA.required.filter((k) => k !== 'main_quest') };
 }
+
+/** TV series / movie skin: names and flavor only (sanitized again by src/engine/mediaSkin.js). */
+const objOf = (keys, item) => ({ type: 'OBJECT', required: keys, properties: Object.fromEntries(keys.map((k) => [k, item])) });
+export const MEDIA_SKIN_SCHEMA = {
+  type: 'OBJECT',
+  required: ['title', 'theme', 'currencyLabel', 'rationLabel', 'terms', 'skillLabels', 'species', 'classes', 'backgrounds', 'languages', 'worldPromptSuggestion'],
+  properties: {
+    title: S('Canonical title of the series, film or book.'),
+    theme: { type: 'STRING', enum: ['fantasy', 'frontier_noir', 'scifi'], description: 'Closest visual theme.' },
+    currencyLabel: S('What people trade with in this universe.'),
+    rationLabel: S('What a day of food is called.'),
+    terms: objOf(MEDIA_TERM_KEYS, S()),
+    skillLabels: objOf(SKILL_KEYS, S()),
+    species: objOf(MEDIA_SPECIES_IDS, { type: 'OBJECT', required: ['name', 'blurb'], properties: { name: S(), blurb: S('One sentence.') } }),
+    classes: objOf(MEDIA_CLASS_IDS, S()),
+    backgrounds: objOf(MEDIA_BACKGROUND_IDS, S()),
+    languages: { type: 'ARRAY', items: S(), description: '10 languages, dialects or codes; the first is the common tongue.' },
+    worldPromptSuggestion: S('Two paragraphs: a ready-to-use world prompt for a solo campaign in this universe.'),
+  },
+};

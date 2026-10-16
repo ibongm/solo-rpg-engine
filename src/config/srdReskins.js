@@ -2,6 +2,10 @@
  * Genre reskins for SRD content. Mechanics never change — only names and flavor.
  * Fantasy and Custom use the SRD names unchanged. Any id missing from a genre map
  * falls back to its SRD name.
+ *
+ * The TV Series / Movie genre has no fixed table: each character or campaign carries an AI-generated
+ * `mediaSkin` (see src/engine/mediaSkin.js). Helpers take it as an optional last argument and check
+ * it before the genre table.
  */
 import { ITEMS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, LANGUAGES } from './srd.js';
 
@@ -180,24 +184,24 @@ export const RESKINS = {
 
 const FANTASY_TERMS = { species: 'Species', class: 'Class', background: 'Background', spells: 'Spells', cantrips: 'Cantrips', spell: 'spell' };
 
-export function genreTerms(genre) {
-  return RESKINS[genre]?.terms || FANTASY_TERMS;
+export function genreTerms(genre, media = null) {
+  return { ...(RESKINS[genre]?.terms || FANTASY_TERMS), ...(media?.terms || {}) };
 }
 
-export function speciesName(id, genre) {
-  return RESKINS[genre]?.species?.[id]?.name || SPECIES_BY_ID[id]?.name || id;
+export function speciesName(id, genre, media = null) {
+  return media?.species?.[id]?.name || RESKINS[genre]?.species?.[id]?.name || SPECIES_BY_ID[id]?.name || id;
 }
 
-export function speciesBlurb(id, genre) {
-  return RESKINS[genre]?.species?.[id]?.blurb || '';
+export function speciesBlurb(id, genre, media = null) {
+  return media?.species?.[id]?.blurb || RESKINS[genre]?.species?.[id]?.blurb || '';
 }
 
-export function className(id, genre) {
-  return RESKINS[genre]?.classes?.[id] || CLASSES_BY_ID[id]?.name || id;
+export function className(id, genre, media = null) {
+  return media?.classes?.[id] || RESKINS[genre]?.classes?.[id] || CLASSES_BY_ID[id]?.name || id;
 }
 
-export function backgroundName(id, genre) {
-  return RESKINS[genre]?.backgrounds?.[id] || BACKGROUNDS_BY_ID[id]?.name || id;
+export function backgroundName(id, genre, media = null) {
+  return media?.backgrounds?.[id] || RESKINS[genre]?.backgrounds?.[id] || BACKGROUNDS_BY_ID[id]?.name || id;
 }
 
 export function itemName(id, genre) {
@@ -215,12 +219,21 @@ export function itemLabel(id, genre) {
  * Genre name for an SRD language ("Dwarvish" → "Morse & Ham Code" in post_apoc).
  * Names that are already genre names (or unknown) pass through, so it is safe to apply twice.
  */
-export function languageName(lang, genre) {
+export function languageName(lang, genre, media = null) {
+  const list = media?.languages;
+  if (list?.length) {
+    // Common is the universe's first language; the other SRD languages spread over the rest.
+    const i = LANGUAGES.indexOf(lang);
+    if (i === 0) return list[0];
+    if (i > 0) return list.length > 1 ? list[1 + ((i - 1) % (list.length - 1))] : list[0];
+    return lang;
+  }
   return RESKINS[genre]?.languages?.[lang] || lang;
 }
 
 /** Languages a character of this genre can pick: the SRD list in fantasy/custom, otherwise the genre's own tongues. */
-export function availableLanguages(genre) {
+export function availableLanguages(genre, media = null) {
+  if (media?.languages?.length) return media.languages.slice();
   const r = RESKINS[genre];
   if (!r?.languages) return LANGUAGES.slice();
   return Array.from(new Set([...LANGUAGES.map((l) => r.languages[l] || l), ...(r.extraLanguages || [])]));

@@ -153,6 +153,17 @@ export const GENRES = {
     rationLabel: 'Canned Food',
     blurb: 'Rust, radiation, mutants and the long road through what remains. (Fallout, Mad Max.)',
   },
+  tv_movie: {
+    id: 'tv_movie',
+    label: 'TV Series / Movie',
+    theme: 'frontier_noir',
+    currencyLabel: 'Resources',
+    skillLabels: { ...BASE_SKILL_LABELS },
+    loreSkill: 'history',
+    archetypes: ['Survivor', 'Leader', 'Fighter', 'Specialist', 'Scout', 'Medic'],
+    rationLabel: 'Rations',
+    blurb: 'Type any TV series, film or book universe to tailor origins, roles, gear names and world building.',
+  },
   custom: {
     id: 'custom',
     label: 'Custom',

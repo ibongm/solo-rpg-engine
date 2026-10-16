@@ -6,6 +6,7 @@ import { DEFAULT_MODEL } from '../config/models.js';
 import { rollWeather } from './clockWeatherEngine.js';
 import { uid } from './rng.js';
 import { XP_MODES, XP_PACES, XP_FINE_TUNE } from './deeds.js';
+import { sanitizeMediaSkin } from './mediaSkin.js';
 
 const NODE_TYPES = ['town', 'dungeon', 'camp', 'safehouse', 'landmark'];
 
@@ -71,7 +72,9 @@ export function createCampaignFromSeed({
   xpMode = 'deeds',
   xpPace = 'standard',
   xpMultiplier = 1,
+  mediaSkin = null,
 }) {
+  const media = genre === 'tv_movie' ? sanitizeMediaSkin(mediaSkin) : null;
   const now = Date.now();
   const start = seed.starting_node || {};
   const startId = safeId(start.id || start.label, 'node');
@@ -149,7 +152,9 @@ export function createCampaignFromSeed({
       status: 'active',
       lastPlayedAt: now,
       createdAt: now,
-      themeOverride: null,
+      // A TV / movie universe picks its own look and carries its names (see src/engine/mediaSkin.js).
+      themeOverride: media?.theme || null,
+      mediaSkin: media,
       questsEnabled: Boolean(questsEnabled),
       xpMode: XP_MODES.includes(xpMode) ? xpMode : 'deeds',
       xpPace: XP_PACES.includes(xpPace) ? xpPace : 'standard',

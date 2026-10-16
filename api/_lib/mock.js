@@ -4,6 +4,8 @@
  * before Google Cloud credentials exist. Development only.
  */
 
+import { SKILL_KEYS, skillLabel } from '../../src/config/genreSkins.js';
+
 const MOCK_USAGE = { inputTokens: 1800, outputTokens: 420, cachedTokens: 900, thoughtTokens: 0 };
 
 const lc = (s) => String(s || '').toLowerCase();
@@ -274,6 +276,42 @@ export function mockImage(prompt) {
   const safe = String(prompt || '').replace(/[<>&"]/g, '').slice(0, 90);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="576" viewBox="0 0 1024 576"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b1d14"/><stop offset="1" stop-color="#961c24"/></linearGradient></defs><rect width="1024" height="576" fill="url(#g)"/><circle cx="780" cy="140" r="70" fill="#f1e6cf" opacity="0.8"/><path d="M0 460 L220 330 L400 430 L620 280 L1024 470 L1024 576 L0 576Z" fill="#1a120c" opacity="0.85"/><text x="40" y="540" font-family="Georgia" font-size="22" fill="#f1e6cf">${safe}</text><text x="40" y="60" font-family="Georgia" font-size="18" fill="#f1e6cf" opacity="0.7">Mock scene (VERTEX_MOCK)</text></svg>`;
   return { base64: Buffer.from(svg).toString('base64'), mimeType: 'image/svg+xml', usage: { inputTokens: 60, outputTokens: 0, images: 1 } };
+}
+
+/** Deterministic TV/movie skin for VERTEX_MOCK runs. */
+export function mockMediaSkin(body) {
+  const title = String(body.mediaTitle || 'Unknown Series').slice(0, 120);
+  return {
+    title,
+    theme: 'frontier_noir',
+    currencyLabel: 'Fuel & Salt',
+    rationLabel: 'Canned Goods',
+    terms: { species: 'Hometown', class: 'Role', background: 'Before', spells: 'Know-How', cantrips: 'Tricks', spell: 'technique' },
+    skillLabels: { ...Object.fromEntries(SKILL_KEYS.map((k) => [k, skillLabel(k)])), arcana: 'Engineering', religion: 'Town Lore', survival: 'Scavenging' },
+    species: {
+      human: { name: 'Townsfolk', blurb: `Ordinary people of ${title}.` },
+      dwarf: { name: 'Farmer', blurb: 'Tough, practical and stubborn.' },
+      elf: { name: 'Outsider', blurb: 'Watchful newcomers with sharp senses.' },
+      halfling: { name: 'Kid', blurb: 'Small, quick and overlooked.' },
+      dragonborn: { name: 'Soldier', blurb: 'Trained, armed and imposing.' },
+      gnome: { name: 'Tinkerer', blurb: 'Keeps the machines running.' },
+      half_elf: { name: 'Drifter', blurb: 'Belongs everywhere and nowhere.' },
+      half_orc: { name: 'Bruiser', blurb: 'Hard to put down.' },
+      tiefling: { name: 'Exile', blurb: 'Distrusted, but useful.' },
+    },
+    classes: {
+      barbarian: 'Bruiser', bard: 'Mayor', cleric: 'Doctor', druid: 'Rancher', fighter: 'Deputy', monk: 'Brawler',
+      paladin: 'Sheriff', ranger: 'Hunter', rogue: 'Smuggler', sorcerer: 'Natural', warlock: 'Agent', wizard: 'Engineer',
+    },
+    backgrounds: {
+      acolyte: 'Pastor', veteran: 'Veteran', urchin: 'Runaway', scholar: 'Teacher', wanderer: 'Trucker',
+      swindler: 'Con Artist', folk_hero: 'Local Hero', noble: 'Old Money', performer: 'Radio Host', healer: 'Nurse',
+    },
+    languages: ['English', 'Spanish', 'Morse Code', 'Sign Language', 'Military Radio', 'German', 'French', 'Mandarin', 'Hobo Signs', 'Legal Jargon'],
+    worldPromptSuggestion: `A small town in the world of ${title}, cut off after a disaster. Supplies are short and trust is shorter.
+
+You arrive as strangers start showing up at the edge of town.`,
+  };
 }
 
 export { MOCK_USAGE };
