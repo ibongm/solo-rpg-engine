@@ -41,6 +41,20 @@ export function rollDice(expr, { critical = false, rng = getDefaultRng() } = {})
   return { expr: String(expr), rolls, bonus: parsed.bonus, total, critical };
 }
 
+/**
+ * Chance (0–1) that d20 + totalModifier meets a DC: a natural 20 always succeeds and a natural 1 always
+ * fails; advantage keeps the better of two d20s, disadvantage the worse.
+ */
+export function successChance(totalModifier, dc, advantage = 'normal') {
+  if (dc === null || dc === undefined || !Number.isFinite(Number(dc))) return null;
+  let hits = 0;
+  for (let r = 1; r <= 20; r++) if (r === 20 || (r !== 1 && r + (Number(totalModifier) || 0) >= Number(dc))) hits++;
+  const p = hits / 20;
+  if (advantage === 'advantage') return 1 - (1 - p) ** 2;
+  if (advantage === 'disadvantage') return p ** 2;
+  return p;
+}
+
 /** Totals manual physical dice for an expression: values are the faces the player rolled. */
 export function totalManualDice(expr, faces, { critical = false } = {}) {
   const parsed = parseDice(expr);

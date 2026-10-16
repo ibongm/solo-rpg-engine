@@ -1,8 +1,10 @@
-import { Send, MessageSquareQuote, Dices, HeartPulse, Tent, Store, Beer, Swords, Eye, VenetianMask, Handshake } from 'lucide-react';
+import { useState } from 'react';
+import { Send, ChevronRight, MessageSquareQuote, Dices, HeartPulse, Tent, Store, Beer, Swords, Eye, VenetianMask, Handshake } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { submitAction, promptPendingRoll, promptDeathSave } from '../../store/turnRunner.js';
 import { commitCampaignSettings } from '../../engine/stateMutator.js';
 import { isDying } from '../../engine/combatEngine.js';
+import { buildCheck, successChance, fmtMod } from '../../engine/diceEngine.js';
 import { STANCES, skillLabel } from '../../config/genreSkins.js';
 import { SegmentedControl, Spinner } from '../common/ui.jsx';
 import { useIsDesktop } from '../common/useMediaQuery.js';
@@ -124,27 +126,9 @@ export default function ActionDeck() {
 
       {showChoices && (
         <div className="scrollbar-none -mx-2 mb-2 flex snap-x snap-mandatory gap-2 overflow-x-auto px-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
-          {campaign.lastChoices.slice(0, 3).map((c, i) => {
-            const Icon = STANCE_ICONS[c.stance] || Swords;
-            return (
-              <button
-                key={i}
-                onClick={() => choose(c)}
-                disabled={disabled}
-                className="group w-[82%] shrink-0 snap-start rounded-theme border-theme border-line/50 bg-surface p-2 text-left text-sm leading-snug transition hover:border-accent hover:shadow-glow disabled:opacity-50 sm:w-auto"
-              >
-                <div className="flex items-start gap-1.5">
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                  <span>{c.label}</span>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted">
-                  <span className="pill py-0">{c.stance}</span>
-                  {c.default_skill && <span className="pill py-0">{skillLabel(c.default_skill, skin)}</span>}
-                  {c.estimated_dc && <span className="pill py-0">~DC {c.estimated_dc}</span>}
-                </div>
-              </button>
-            );
-          })}
+          {campaign.lastChoices.slice(0, 3).map((c, i) => (
+            <ChoiceCard key={i} choice={c} character={character} campaign={campaign} skin={skin} disabled={disabled} onChoose={() => choose(c)} isDesktop={isDesktop} />
+          ))}
         </div>
       )}
 
@@ -198,6 +182,81 @@ export default function ActionDeck() {
             </button>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+const STANCE_HELP = {
+  Diplomatic: 'Talk it out: primes Persuasion.',
+  Aggressive: 'Force and threat: primes Intimidation.',
+  Deceptive: 'Lies and misdirection: primes Deception.',
+  Investigative: 'Read people and clues: primes Insight.',
+  Tactical: 'Positioning and planning: no skill is primed; the storyteller asks for whatever fits.',
+};
+
+/**
+ * One guided choice. The action itself is a separate button from its metadata pills, so tapping a
+ * pill (to see what a skill means or what your odds are) never sends the turn.
+ */
+function ChoiceCard({ choice: c, character, campaign, skin, disabled, onChoose, isDesktop }) {
+  const [open, setOpen] = useState(null); // 'stance' | 'skill' | 'dc' | null
+  const Icon = STANCE_ICONS[c.stance] || Swords;
+  const check = c.default_skill
+    ? buildCheck({ character, skillOrStat: c.default_skill, dc: c.estimated_dc ?? null, weather: campaign.worldState?.weather, skin })
+    : null;
+  const chance = check && c.estimated_dc ? successChance(check.totalModifier, c.estimated_dc, check.advantage) : null;
+  const toggle = (k) => (e) => {
+    e.stopPropagation();
+    setOpen(open === k ? null : k);
+  };
+  const pill = (k, label, title) => (
+    <button
+      type="button"
+      className={`pill cursor-pointer py-0 transition ${open === k ? 'border-accent text-accent' : 'hover:border-accent'}`}
+      onClick={toggle(k)}
+      aria-expanded={open === k}
+      title={title}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="group flex w-[82%] shrink-0 snap-start flex-col rounded-theme border-theme border-line/50 bg-surface text-sm leading-snug transition hover:border-accent hover:shadow-glow sm:w-auto">
+      <button type="button" onClick={onChoose} disabled={disabled} className="flex flex-1 items-start gap-1.5 p-2 pb-1 text-left disabled:opacity-50">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+        <span className="flex-1">{c.label}</span>
+        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted transition group-hover:text-accent" aria-hidden="true" />
+      </button>
+      <div className="flex flex-wrap gap-1 px-2 pb-2 text-[10px] text-muted">
+        {pill('stance', c.stance, STANCE_HELP[c.stance])}
+        {check && pill('skill', `${skillLabel(c.default_skill, skin)} ${fmtMod(check.totalModifier)}`, 'Show the modifier breakdown')}
+        {c.estimated_dc && pill('dc', `~DC ${c.estimated_dc}${chance !== null ? ` · ${Math.round(chance * 100)}%` : ''}`, 'Estimated difficulty and your odds')}
+      </div>
+      {open && (
+        <div className="mx-2 mb-2 rounded-theme bg-surface-2/60 p-2 text-xs" role="note">
+          {open === 'stance' && <p>{STANCE_HELP[c.stance] || c.stance}</p>}
+          {open !== 'stance' && check && (
+            <>
+              <p className="font-semibold">
+                {check.label}
+                {check.ability ? ` (${check.ability.toUpperCase()})` : ''}: {fmtMod(check.totalModifier)}
+              </p>
+              <p className="text-muted">
+                {check.breakdown.length ? check.breakdown.map((b) => `${b.label} ${fmtMod(b.value)}`).join(', ') : 'No modifiers'}
+                {check.advantage !== 'normal' ? ` · ${check.advantage}` : ''}
+              </p>
+              {c.estimated_dc && (
+                <p className="mt-1">
+                  Estimated DC {c.estimated_dc}: about {Math.round((chance ?? 0) * 100)}% to succeed. The storyteller sets the real DC before you roll.
+                </p>
+              )}
+            </>
+          )}
+          {open === 'dc' && !check && <p>Estimated DC {c.estimated_dc}. The storyteller sets the real DC before you roll.</p>}
+          {!isDesktop && <p className="mt-1 text-muted">Tap the action text above to do it.</p>}
+        </div>
       )}
     </div>
   );

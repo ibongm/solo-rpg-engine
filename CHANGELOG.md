@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * "Learn new spells" in the Character tab after levelling up: new cantrips, spells known, wizard spellbook pages and Mystic Arcanum, validated by the engine (`applySpellChoices`).
 * Upcasting: cast any leveled spell with a higher free slot for extra dice (`upcast` per spell, `upcastDice`). Storyteller-requested spell attacks carry the slot as `spell_attack:<id>:<slot>`.
 * Area save spells (Fireball, Cone of Cold, …) roll damage once and an open save for each engaged enemy (`resolveAreaSaveSpell`).
+* `successChance(totalModifier, dc, advantage)` in the dice engine: exact d20 odds including natural 1/20 and advantage/disadvantage.
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.
@@ -42,9 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The Character tab's XP table, the milestone countdown and the storyteller context use the campaign's pace.
 * Slot maximums are derived from class and level, so characters levelled before this release get their full slots on the next turn. The Spells panel shows slots for every level, groups prepared spells by level and offers a slot-level choice when casting.
 * Prepared casters choose from their whole class list up to their highest slot level (wizards from their spellbook). The storyteller context includes slots left per level, in the uncached part of the prompt.
+* `.gitignore`: `docs/*.pdf` (local reference books are never published).
 
 ### Fixed
 * Characters never gained spell slots, spells or cantrips on level-up (a level-5 wizard kept two 1st-level slots).
+* Guided choices on mobile: tapping a skill, stance or DC pill no longer sends the turn. Pills are separate buttons that open a breakdown (skill + ability, modifier parts, estimated DC and success chance); the action is its own button with an arrow.
 
 ### Security
 * Forced `@grpc/grpc-js` to `^1.14.6` under `@firebase/firestore` via npm `overrides`, clearing GHSA-m9gg-hp2v-232j and GHSA-f596-whhp-79r4 (server-side advisories; the browser build never bundled grpc). `npm audit --omit=dev` now reports 0 vulnerabilities; remaining findings are dev-only Tailwind v3 tooling.

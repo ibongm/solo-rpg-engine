@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  successChance,
   parseDice,
   rollDice,
   totalManualDice,
@@ -114,5 +115,20 @@ describe('checks', () => {
   it('rollCheck is reproducible with a seeded RNG', () => {
     const check = buildCheck({ character: hero(), skillOrStat: 'perception', dc: 12 });
     expect(rollCheck(check, seededRng('a'))).toEqual(rollCheck(check, seededRng('a')));
+  });
+});
+
+describe('successChance', () => {
+  it('counts d20 faces that meet the DC, with natural 1 and 20 rules', () => {
+    expect(successChance(0, 11)).toBeCloseTo(0.5);
+    expect(successChance(4, 15)).toBeCloseTo(0.5);
+    expect(successChance(10, 5)).toBeCloseTo(0.95); // a natural 1 still fails
+    expect(successChance(-5, 30)).toBeCloseTo(0.05); // a natural 20 still succeeds
+    expect(successChance(2, null)).toBeNull();
+  });
+
+  it('applies advantage and disadvantage', () => {
+    expect(successChance(0, 11, 'advantage')).toBeCloseTo(0.75);
+    expect(successChance(0, 11, 'disadvantage')).toBeCloseTo(0.25);
   });
 });
