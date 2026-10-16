@@ -65,7 +65,8 @@ describe('computeTurnState', () => {
     const { character, campaign } = setup();
     const roll = { kind: 'skill', label: 'Stealth', dc: 12, success: true, critical: false };
     const r = computeTurnState({ campaign, character, ai: ai(), roll });
-    expect(r.character.xp).toBe(20);
+    // Medium check (20 base) at the default Standard pace (0.625×).
+    expect(r.character.xp).toBe(13);
     expect(r.events.find((e) => e.type === 'xp').text).toContain('passed Stealth (DC 12)');
   });
 

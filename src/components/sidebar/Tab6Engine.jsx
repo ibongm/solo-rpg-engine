@@ -5,7 +5,8 @@ import { TEXT_MODELS, IMAGE_MODEL, getTextRate } from '../../config/models.js';
 import { THEMES, themeForGenre } from '../../config/genreSkins.js';
 import { campaignToMarkdown, exportCampaignBundle, downloadText, slugify } from '../../engine/exporters.js';
 import { SegmentedControl, fmtTokens, fmtUSD } from '../common/ui.jsx';
-import { XP_MODE_INFO, xpMode, questsEnabled } from '../../engine/deeds.js';
+import { XP_MODE_INFO, xpMode, xpPace, xpFineTune, questsEnabled } from '../../engine/deeds.js';
+import XpPaceControls from '../common/XpPaceControls.jsx';
 
 export default function Tab6Engine() {
   const campaign = useGameStore((s) => s.campaign);
@@ -56,6 +57,15 @@ export default function Tab6Engine() {
           />
           <p className="mt-1 text-[11px] text-muted">{XP_MODE_INFO[mode].blurb}</p>
         </div>
+        <XpPaceControls
+          mode={mode}
+          pace={xpPace(campaign)}
+          fineTune={xpFineTune(campaign)}
+          level={character?.level || 1}
+          disabled={locked}
+          idPrefix="eng-xp"
+          onChange={({ pace, fineTune }) => !locked && updateSettings({ 'meta.xpPace': pace, 'meta.xpMultiplier': fineTune })}
+        />
       </section>
 
       <section>

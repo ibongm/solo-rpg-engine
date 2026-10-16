@@ -119,7 +119,7 @@ export function renderDynamic(ctx, action) {
     const xp = st.xpMode === 'milestone'
       ? `MILESTONE levelling (level ${st.level}; ${st.turnsSinceMilestone} turns since the last milestone, cooldown ${st.milestoneCooldown})`
       : 'DEEDS (engine awards XP automatically)';
-    lines.push(`Campaign settings: quests ${st.questsEnabled ? 'ON' : 'OFF'}; experience ${xp}.`);
+    lines.push(`Campaign settings: quests ${st.questsEnabled ? 'ON' : 'OFF'}; experience ${xp}${st.xpPace ? `, ${st.xpPace} pace` : ''}.`);
   }
   if (d.clock) lines.push(`Time: Day ${d.clock.day}, ${String(d.clock.hour).padStart(2, '0')}:${String(d.clock.minute).padStart(2, '0')}, ${d.clock.season}.`);
   if (d.weather) lines.push(`Weather: ${d.weather.type} — ${d.weather.mechanicalEffect}`);

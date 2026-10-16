@@ -9,6 +9,7 @@ import { createCampaignFromSeed } from '../../engine/campaignFactory.js';
 import { XP_MODE_INFO } from '../../engine/deeds.js';
 import { markdownToLoreEntries } from '../../engine/exporters.js';
 import { Modal, Slider, SegmentedControl, Spinner, fmtUSD } from '../common/ui.jsx';
+import XpPaceControls from '../common/XpPaceControls.jsx';
 
 const STEPS = ['Genre & Skin', 'Tone & Rules', 'Hero & Prompt', 'Seed the World'];
 
@@ -30,6 +31,7 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
   const [seedModel, setSeedModel] = useState(HEAVY_MODEL);
   const [questsOn, setQuestsOn] = useState(false);
   const [xpMode, setXpMode] = useState('deeds');
+  const [xpPace, setXpPace] = useState({ pace: 'standard', fineTune: 1 });
   const eligible = characters.filter((c) => c.status !== 'fallen' && !c.activeCampaignId);
   const [charId, setCharId] = useState(eligible[0]?.id || '');
   const [prompt, setPrompt] = useState('');
@@ -115,6 +117,8 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
         importedLore: lore,
         questsEnabled: questsOn,
         xpMode,
+        xpPace: xpPace.pace,
+        xpMultiplier: xpPace.fineTune,
       });
       campaign.telemetry = {
         totalInputTokens: seedCost.usage?.inputTokens || 0,
@@ -236,6 +240,9 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
                 <div className="label">Experience</div>
                 <SegmentedControl value={xpMode} onChange={setXpMode} options={Object.entries(XP_MODE_INFO).map(([value, m]) => ({ value, label: m.label }))} />
                 <p className="mt-1 text-xs text-muted">{XP_MODE_INFO[xpMode].blurb}</p>
+                <div className="mt-2">
+                  <XpPaceControls mode={xpMode} pace={xpPace.pace} fineTune={xpPace.fineTune} onChange={setXpPace} level={1} idPrefix="wf-xp" />
+                </div>
               </div>
             </div>
             <div>

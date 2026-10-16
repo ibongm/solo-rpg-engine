@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Genre languages: every SRD language now has a genre equivalent (e.g. Dwarvish → `Morse & Ham Code` in post-apocalyptic, `Heavy-Worlder Cant` in sci-fi, `Cornish Miner's Cant` in frontier noir), plus genre-only extra languages to pick. `languageName()` / `availableLanguages()` in `src/config/srdReskins.js`.
 * `wasteland` genre ("Mutant Wasteland"): the previous mutant/Fallout-style post-apocalyptic reskin, kept as its own genre with its own languages, shop and starter kit.
 * `docs/update-0.1.md`: the 8-part feature & UX upgrade spec being implemented.
+* Leveling pace (`meta.xpPace`): Story, Standard, Slow and Gritty. Roughly 4 / 8 / 12 / 20 turns for level 2, with slower paces stretching later levels (Standard ≈ 25 turns at level 10, Gritty ≈ 100). Applies to Deeds XP and to milestone spacing.
+* XP fine-tune (`meta.xpMultiplier`, 0.5×–2×) on top of the pace. Both are set in the World Forge and can be changed mid-campaign in the Engine tab, which shows the engine's turns-per-level estimate (`estimatedTurnsPerLevel`).
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.
@@ -31,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `post_apoc` is now grounded Post-Apocalyptic Survival (The Walking Dead, Jericho, The Last of Us): Upbringings, Roles and Before-the-Fall backgrounds, realistic gear names, `Barter / Ammo` currency, grounded skill labels, shop, starter kit and scene-art style. Existing post-apocalyptic characters show the new names.
 * Characters store languages in their genre's words at creation (like tools); the sheet, print view and storyteller context also translate older characters on display.
 * `AGENTS.md`: rewritten agent guide (commands, stack, project map, engine rules, code style, boundaries).
+* `scoreDeeds`, `levelScale`, `milestoneCooldown` and `resolveMilestone` take the pace. Campaigns without a pace now use Standard, so existing Deeds campaigns level more slowly than before.
+* The Character tab's XP table, the milestone countdown and the storyteller context use the campaign's pace.
 
 ### Security
 * Forced `@grpc/grpc-js` to `^1.14.6` under `@firebase/firestore` via npm `overrides`, clearing GHSA-m9gg-hp2v-232j and GHSA-f596-whhp-79r4 (server-side advisories; the browser build never bundled grpc). `npm audit --omit=dev` now reports 0 vulnerabilities; remaining findings are dev-only Tailwind v3 tooling.

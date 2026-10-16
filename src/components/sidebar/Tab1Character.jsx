@@ -10,7 +10,7 @@ import { abilityMod, proficiencyBonus, xpForNextLevel, XP_THRESHOLDS, perkPoints
 import { buildCheck, effectiveAbility, fmtMod } from '../../engine/diceEngine.js';
 import { Meter } from '../common/ui.jsx';
 import PerkTree from '../common/PerkTree.jsx';
-import { xpMode, questsEnabled, milestoneCooldown, levelScale, DEED_XP } from '../../engine/deeds.js';
+import { xpMode, xpPace, xpFineTune, XP_PACE_INFO, questsEnabled, milestoneCooldown, levelScale, DEED_XP } from '../../engine/deeds.js';
 
 export default function Tab1Character() {
   const character = useGameStore((s) => s.character);
@@ -120,7 +120,7 @@ function ProgressPanel({ character, campaign, prevXp, nextXp }) {
   const mode = xpMode(campaign);
   if (mode === 'milestone') {
     const since = Math.max(0, (campaign.turnCount || 0) - (campaign.progress?.lastMilestoneTurn || 0));
-    const cooldown = milestoneCooldown(character.level || 1);
+    const cooldown = milestoneCooldown(character.level || 1, xpPace(campaign));
     const last = (campaign.progress?.milestones || []).slice(-1)[0];
     return (
       <div className="mt-3 card-inset p-2 text-xs">
@@ -133,25 +133,29 @@ function ProgressPanel({ character, campaign, prevXp, nextXp }) {
       </div>
     );
   }
-  const scale = levelScale(character.level);
+  const pace = xpPace(campaign);
+  const fine = xpFineTune(campaign);
+  // Same factors scoreDeeds() applies, so the table shows exactly what each deed is worth right now.
+  const factor = levelScale(character.level, pace) * XP_PACE_INFO[pace].multiplier * fine;
+  const xp = (base) => Math.max(1, Math.round(base * factor));
   const rows = [
-    ['Passed check', `${Math.round(DEED_XP.checkEasy * scale)}–${Math.round(DEED_XP.checkHeroic * scale)} (by DC)`],
-    ['Failed check', Math.round(DEED_XP.checkFailed * scale)],
-    ['Enemy defeated or driven off', Math.round(DEED_XP.enemyOvercome * scale)],
-    ['New location discovered', Math.round(DEED_XP.locationDiscovered * scale)],
-    ['First visit to a location', Math.round(DEED_XP.locationVisited * scale)],
-    ['New codex entry', Math.round(DEED_XP.loreLearned * scale)],
-    ['Faction standing improves', Math.round(DEED_XP.factionStanding * scale)],
-    ['Companion joins you', Math.round(DEED_XP.allyRecruited * scale)],
-    ['Day survived', Math.round(DEED_XP.daySurvived * scale)],
+    ['Passed check', `${xp(DEED_XP.checkEasy)}–${xp(DEED_XP.checkHeroic)} (by DC)`],
+    ['Failed check', xp(DEED_XP.checkFailed)],
+    ['Enemy defeated or driven off', xp(DEED_XP.enemyOvercome)],
+    ['New location discovered', xp(DEED_XP.locationDiscovered)],
+    ['First visit to a location', xp(DEED_XP.locationVisited)],
+    ['New codex entry', xp(DEED_XP.loreLearned)],
+    ['Faction standing improves', xp(DEED_XP.factionStanding)],
+    ['Companion joins you', xp(DEED_XP.allyRecruited)],
+    ['Day survived', xp(DEED_XP.daySurvived)],
   ];
-  if (questsEnabled(campaign)) rows.push(['Quest completed', `${Math.round(DEED_XP.questRumor * scale)}–${Math.round(DEED_XP.questMain * scale)}`]);
+  if (questsEnabled(campaign)) rows.push(['Quest completed', `${xp(DEED_XP.questRumor)}–${xp(DEED_XP.questMain)}`]);
   return (
     <div className="mt-3">
       <Meter label={`XP — level ${character.level}`} value={character.xp - prevXp} max={nextXp ? nextXp - prevXp : 1} showValue={false} colorClass="bg-accent-2" />
       {nextXp && <p className="mt-0.5 text-right font-mono text-[11px] text-muted">{character.xp} / {nextXp}</p>}
       <details className="mt-1 text-xs">
-        <summary className="cursor-pointer text-muted hover:text-ink">How you earn XP (Deeds)</summary>
+        <summary className="cursor-pointer text-muted hover:text-ink">How you earn XP (Deeds · {XP_PACE_INFO[pace].label} pace{fine !== 1 ? ` · ${fine}×` : ''})</summary>
         <table className="mt-1 w-full">
           <tbody>
             {rows.map(([label, xp]) => (

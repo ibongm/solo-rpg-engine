@@ -8,6 +8,9 @@
  *  - 'milestone': no XP trickle. The storyteller may PROPOSE a milestone at a major story beat;
  *                 the engine grants exactly one level, at most once per cooldown window.
  *
+ * Pace (campaign.meta.xpPace) sets how fast levels come in either mode, and campaign.meta.xpMultiplier
+ * fine-tunes deed XP on top of it (0.5×–2×).
+ *
  * Every function here is pure and deterministic.
  */
 import { XP_THRESHOLDS, MAX_LEVEL } from './progression.js';
@@ -25,7 +28,27 @@ export const XP_MODE_INFO = {
   },
 };
 
-/** Base XP values at level 1. They scale with level so each level takes a similar amount of play. */
+export const XP_PACES = ['story', 'standard', 'slow', 'gritty'];
+
+/**
+ * multiplier: scales every deed's XP. scalePower: how much of the growing 5e level gap deed XP keeps up with
+ * (1 = every level takes the same number of turns; lower = later levels take longer). cooldownMult: milestone spacing.
+ * Approximate turns per level (typical ~60 base XP turn) are in TYPICAL_TURN_XP / estimatedTurnsPerLevel().
+ */
+export const XP_PACE_INFO = {
+  story: { label: 'Story', multiplier: 1.25, scalePower: 1, cooldownMult: 0.75, blurb: 'Fast: about 4 turns per level at every level. For short stories.' },
+  standard: { label: 'Standard', multiplier: 0.625, scalePower: 0.73, cooldownMult: 1.5, blurb: 'Earned: about 8 turns for level 2, 16 at level 4, 25 at level 10.' },
+  slow: { label: 'Slow', multiplier: 0.42, scalePower: 0.66, cooldownMult: 2, blurb: 'Tabletop pace: about 12 turns for level 2, 28 at level 4, 50 at level 10.' },
+  gritty: { label: 'Gritty', multiplier: 0.25, scalePower: 0.62, cooldownMult: 3, blurb: 'Hard-won: about 20 turns for level 2, 52 at level 4, 100 at level 10.' },
+};
+
+/** Fine-tune steps for campaign.meta.xpMultiplier, applied on top of the pace. */
+export const XP_FINE_TUNE = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+/** Rough XP of an ordinary turn (a passed medium check, a bit of lore, some exploring) — for estimates only. */
+export const TYPICAL_TURN_XP = 60;
+
+/** Base XP values at level 1. They scale with level (see the pace's scalePower). */
 export const DEED_XP = {
   checkEasy: 10, // passed, DC ≤ 10
   checkMedium: 20, // passed, DC 11–14
@@ -48,24 +71,50 @@ export const DEED_XP = {
 export const DEED_CAPS = { enemyOvercome: 6, locationDiscovered: 2, loreLearned: 3, daySurvived: 3 };
 
 /** Turns that must pass between milestone level-ups. */
-export function milestoneCooldown(level) {
-  return level <= 2 ? 6 : 10;
+export function milestoneCooldown(level, pace = 'standard') {
+  const info = XP_PACE_INFO[pace] || XP_PACE_INFO.standard;
+  return Math.max(1, Math.round((level <= 2 ? 6 : 10) * info.cooldownMult));
 }
 
 export function xpMode(campaign) {
   return XP_MODES.includes(campaign?.meta?.xpMode) ? campaign.meta.xpMode : 'deeds';
 }
 
+export function xpPace(campaign) {
+  return XP_PACES.includes(campaign?.meta?.xpPace) ? campaign.meta.xpPace : 'standard';
+}
+
+/** Fine-tune multiplier; anything not on the XP_FINE_TUNE scale falls back to 1. */
+export function xpFineTune(campaign) {
+  const v = Number(campaign?.meta?.xpMultiplier);
+  return XP_FINE_TUNE.includes(v) ? v : 1;
+}
+
 export function questsEnabled(campaign) {
   return campaign?.meta?.questsEnabled !== false;
 }
 
-/** Multiplier that keeps the pace roughly constant: the XP gap to the next level ÷ the level-1 gap (300). */
-export function levelScale(level) {
+function levelGap(level) {
   const lv = Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(level) || 1)));
   const idx = Math.min(lv, XP_THRESHOLDS.length - 1);
-  const gap = XP_THRESHOLDS[idx] - XP_THRESHOLDS[idx - 1];
-  return Math.max(1, gap / 300);
+  return XP_THRESHOLDS[idx] - XP_THRESHOLDS[idx - 1];
+}
+
+/**
+ * How much deed XP grows with level: (XP gap to the next level ÷ the level-1 gap of 300) ^ scalePower.
+ * scalePower 1 keeps every level equally long; lower powers make later levels take longer.
+ */
+export function levelScale(level, pace = 'standard') {
+  const info = XP_PACE_INFO[pace] || XP_PACE_INFO.standard;
+  return Math.max(1, levelGap(level) / 300) ** info.scalePower;
+}
+
+/** Approximate turns to gain a level from `level` with ordinary turns (UI estimate, never used for awards). */
+export function estimatedTurnsPerLevel(level, pace = 'standard', fineTune = 1) {
+  if ((Number(level) || 1) >= MAX_LEVEL) return null;
+  const info = XP_PACE_INFO[pace] || XP_PACE_INFO.standard;
+  const perTurn = TYPICAL_TURN_XP * levelScale(level, pace) * info.multiplier * (fineTune || 1);
+  return Math.max(1, Math.round(levelGap(level) / perTurn));
 }
 
 const FACTION_TIERS = ['Hostile', 'Wary', 'Neutral', 'Friendly', 'Allied'];
@@ -171,10 +220,12 @@ export function listDeeds({ before, after, roll = null, codexUpserts = [], known
   return deeds;
 }
 
-/** Total XP for a set of deeds at the character's current level. */
-export function scoreDeeds(deeds, level) {
+/** Total XP for a set of deeds at the character's current level, pace and fine-tune (at least 1 if anything was earned). */
+export function scoreDeeds(deeds, level, pace = 'standard', fineTune = 1) {
   const base = deeds.reduce((sum, d) => sum + d.base, 0);
-  return Math.round(base * levelScale(level));
+  if (base <= 0) return 0;
+  const info = XP_PACE_INFO[pace] || XP_PACE_INFO.standard;
+  return Math.max(1, Math.round(base * levelScale(level, pace) * info.multiplier * (fineTune || 1)));
 }
 
 /**
@@ -182,13 +233,13 @@ export function scoreDeeds(deeds, level) {
  * storyteller proposed a milestone and the cooldown has passed.
  * @returns {{ granted: boolean, xp: number, reason: string, turnsToWait: number }}
  */
-export function resolveMilestone({ character, proposal, turnCount, lastMilestoneTurn }) {
+export function resolveMilestone({ character, proposal, turnCount, lastMilestoneTurn, pace = 'standard' }) {
   const none = { granted: false, xp: 0, reason: '', turnsToWait: 0 };
   if (!proposal || proposal.reached !== true) return none;
   const level = character.level || 1;
   if (level >= MAX_LEVEL) return none;
   const since = (turnCount || 0) - (lastMilestoneTurn || 0);
-  const cooldown = milestoneCooldown(level);
+  const cooldown = milestoneCooldown(level, pace);
   if (since < cooldown) return { ...none, turnsToWait: cooldown - since };
   const target = XP_THRESHOLDS[level];
   return { granted: true, xp: Math.max(0, target - (character.xp || 0)), reason: String(proposal.reason || 'A turning point in your story').slice(0, 160), turnsToWait: 0 };

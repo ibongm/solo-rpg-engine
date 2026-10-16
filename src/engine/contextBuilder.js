@@ -6,7 +6,7 @@
  * The STATIC block (rules-adjacent, rarely changing) is separated so the server can cache it.
  */
 import { effectiveAc, effectiveMaxHp } from './diceEngine.js';
-import { questsEnabled, xpMode, milestoneCooldown } from './deeds.js';
+import { questsEnabled, xpMode, xpPace, milestoneCooldown } from './deeds.js';
 import { castableSpells } from './spellEngine.js';
 import { languageName } from '../config/srdReskins.js';
 
@@ -138,9 +138,10 @@ export function buildDmContext({ campaign, character, turns = [], diary = [], co
       settings: {
         questsEnabled: questsEnabled(campaign),
         xpMode: xpMode(campaign),
+        xpPace: xpPace(campaign),
         level: character.level,
         turnsSinceMilestone: Math.max(0, (campaign.turnCount || 0) - (campaign.progress?.lastMilestoneTurn || 0)),
-        milestoneCooldown: milestoneCooldown(character.level || 1),
+        milestoneCooldown: milestoneCooldown(character.level || 1, xpPace(campaign)),
       },
       companions: (character.companionRoster || []).map((c) => ({ id: c.id, name: c.name, archetype: c.archetype, isRecruited: c.isRecruited, loyalty: c.loyalty, hp: c.hp, maxHp: c.maxHp, personalityNotes: c.personalityNotes })),
       combat: campaign.combat?.inCombat ? campaign.combat : null,

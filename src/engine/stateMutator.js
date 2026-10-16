@@ -10,7 +10,7 @@ import { advanceWorld } from './clockWeatherEngine.js';
 import { syncCombat, applyHpChange, emptyCombat } from './combatEngine.js';
 import { placeNodeNear, connect, safeId, normalizeCodexEntry } from './campaignFactory.js';
 import { uid, getDefaultRng } from './rng.js';
-import { xpMode, questsEnabled, listDeeds, scoreDeeds, resolveMilestone } from './deeds.js';
+import { xpMode, xpPace, xpFineTune, questsEnabled, listDeeds, scoreDeeds, resolveMilestone } from './deeds.js';
 import { ABILITIES, SKILL_KEYS } from '../config/genreSkins.js';
 
 export const MAX_HP_DELTA_FACTOR = 2;
@@ -407,14 +407,14 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
   if (mode === 'deeds') {
     xpGain = clamp(int(engine.xp_delta), 0, MAX_XP_GAIN);
     const deeds = listDeeds({ before: { campaign, character }, after: { campaign: camp, character: ch }, roll, codexUpserts, knownCodexIds });
-    const earned = scoreDeeds(deeds, ch.level);
+    const earned = scoreDeeds(deeds, ch.level, xpPace(camp), xpFineTune(camp));
     if (earned) {
       xpGain = clamp(xpGain + earned, 0, MAX_XP_GAIN);
       xpWhy = deeds.map((d) => d.text).join(', ');
     }
   } else if (mode === 'milestone' && ai) {
     const turnNo = (campaign.turnCount || 0) + 1;
-    const m = resolveMilestone({ character: ch, proposal: su.milestone, turnCount: turnNo, lastMilestoneTurn: camp.progress?.lastMilestoneTurn || 0 });
+    const m = resolveMilestone({ character: ch, proposal: su.milestone, turnCount: turnNo, lastMilestoneTurn: camp.progress?.lastMilestoneTurn || 0, pace: xpPace(camp) });
     if (m.granted) {
       xpGain = m.xp;
       xpWhy = m.reason;

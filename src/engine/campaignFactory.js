@@ -5,7 +5,7 @@
 import { DEFAULT_MODEL } from '../config/models.js';
 import { rollWeather } from './clockWeatherEngine.js';
 import { uid } from './rng.js';
-import { XP_MODES } from './deeds.js';
+import { XP_MODES, XP_PACES, XP_FINE_TUNE } from './deeds.js';
 
 const NODE_TYPES = ['town', 'dungeon', 'camp', 'safehouse', 'landmark'];
 
@@ -69,6 +69,8 @@ export function createCampaignFromSeed({
   seedKey = uid('seed'),
   questsEnabled = true,
   xpMode = 'deeds',
+  xpPace = 'standard',
+  xpMultiplier = 1,
 }) {
   const now = Date.now();
   const start = seed.starting_node || {};
@@ -150,6 +152,8 @@ export function createCampaignFromSeed({
       themeOverride: null,
       questsEnabled: Boolean(questsEnabled),
       xpMode: XP_MODES.includes(xpMode) ? xpMode : 'deeds',
+      xpPace: XP_PACES.includes(xpPace) ? xpPace : 'standard',
+      xpMultiplier: XP_FINE_TUNE.includes(Number(xpMultiplier)) ? Number(xpMultiplier) : 1,
     },
     telemetry: { totalInputTokens: 0, totalOutputTokens: 0, cachedTokens: 0, totalCostUSD: 0 },
     worldState: {
