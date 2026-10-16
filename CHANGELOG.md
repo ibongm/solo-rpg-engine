@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Characters never gained spell slots, spells or cantrips on level-up (a level-5 wizard kept two 1st-level slots).
 * Guided choices on mobile: tapping a skill, stance or DC pill no longer sends the turn. Pills are separate buttons that open a breakdown (skill + ability, modifier parts, estimated DC and success chance); the action is its own button with an arrow.
+* Test files under `api/` were deployed as broken serverless routes (e.g. `/api/dm-turn.test` returned 500). `.vercelignore` now excludes `api/**/*.test.js`.
 
 ### Security
 * Forced `@grpc/grpc-js` to `^1.14.6` under `@firebase/firestore` via npm `overrides`, clearing GHSA-m9gg-hp2v-232j and GHSA-f596-whhp-79r4 (server-side advisories; the browser build never bundled grpc). `npm audit --omit=dev` now reports 0 vulnerabilities; remaining findings are dev-only Tailwind v3 tooling.
