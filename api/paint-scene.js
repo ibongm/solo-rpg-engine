@@ -38,7 +38,7 @@ export default withHandler(async ({ body, uid }) => {
   const path = `users/${uid}/campaigns/${body.campaignId}/scenes/${body.turnId}-${Date.now()}.${ext}`;
   const token = crypto.randomUUID();
   try {
-    const bucket = getAdminBucket();
+    const bucket = await getAdminBucket();
     await bucket.file(path).save(Buffer.from(image.base64, 'base64'), {
       resumable: false,
       contentType: image.mimeType,
