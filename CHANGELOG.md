@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `docs/update-0.1.md`: the 8-part feature & UX upgrade spec being implemented.
 * Leveling pace (`meta.xpPace`): Story, Standard, Slow and Gritty. Roughly 4 / 8 / 12 / 20 turns for level 2, with slower paces stretching later levels (Standard ≈ 25 turns at level 10, Gritty ≈ 100). Applies to Deeds XP and to milestone spacing.
 * XP fine-tune (`meta.xpMultiplier`, 0.5×–2×) on top of the pace. Both are set in the World Forge and can be changed mid-campaign in the Engine tab, which shows the engine's turns-per-level estimate (`estimatedTurnsPerLevel`).
+* All 319 SRD 5.1 spells, cantrips through 9th level (`src/config/spells.js`), with class lists per spell level for every caster, including the Fiend's expanded list and new Paladin and Ranger lists. Generated from the SRD 5.1 data (5e-bits/5e-database, CC BY 4.0).
+* Spellcasting grows with level (`src/engine/spellProgress.js`, tables in `src/config/spellProgression.js`): SRD slot tables for full casters, half casters (Paladin and Ranger gain spells at level 2) and Warlock pact magic, plus Mystic Arcanum (6th–9th level, once per long rest). Life Domain spells are added as the cleric levels.
+* "Learn new spells" in the Character tab after levelling up: new cantrips, spells known, wizard spellbook pages and Mystic Arcanum, validated by the engine (`applySpellChoices`).
+* Upcasting: cast any leveled spell with a higher free slot for extra dice (`upcast` per spell, `upcastDice`). Storyteller-requested spell attacks carry the slot as `spell_attack:<id>:<slot>`.
+* Area save spells (Fireball, Cone of Cold, …) roll damage once and an open save for each engaged enemy (`resolveAreaSaveSpell`).
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.
@@ -35,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `AGENTS.md`: rewritten agent guide (commands, stack, project map, engine rules, code style, boundaries).
 * `scoreDeeds`, `levelScale`, `milestoneCooldown` and `resolveMilestone` take the pace. Campaigns without a pace now use Standard, so existing Deeds campaigns level more slowly than before.
 * The Character tab's XP table, the milestone countdown and the storyteller context use the campaign's pace.
+* Slot maximums are derived from class and level, so characters levelled before this release get their full slots on the next turn. The Spells panel shows slots for every level, groups prepared spells by level and offers a slot-level choice when casting.
+* Prepared casters choose from their whole class list up to their highest slot level (wizards from their spellbook). The storyteller context includes slots left per level, in the uncached part of the prompt.
+
+### Fixed
+* Characters never gained spell slots, spells or cantrips on level-up (a level-5 wizard kept two 1st-level slots).
 
 ### Security
 * Forced `@grpc/grpc-js` to `^1.14.6` under `@firebase/firestore` via npm `overrides`, clearing GHSA-m9gg-hp2v-232j and GHSA-f596-whhp-79r4 (server-side advisories; the browser build never bundled grpc). `npm audit --omit=dev` now reports 0 vulnerabilities; remaining findings are dev-only Tailwind v3 tooling.

@@ -3,6 +3,7 @@
  */
 import { ABILITIES, SKILL_KEYS } from '../config/genreSkins.js';
 import { MERCHANT_TEMPLATES, STARTER_KIT_NAMES } from '../config/catalog.js';
+import { syncSpellcasting } from './spellProgress.js';
 import { rollDie, uid, getDefaultRng } from './rng.js';
 
 export const XP_THRESHOLDS = [
@@ -106,7 +107,7 @@ export function roll4d6DropLowest(rng = getDefaultRng()) {
 }
 
 /**
- * Applies an XP delta. Levels up with fixed HP gains.
+ * Applies an XP delta. Levels up with fixed HP gains and grows spellcasting (slots, new casters).
  * Returns { character, levelsGained } without mutating the input.
  */
 export function applyXp(character, delta) {
@@ -119,7 +120,8 @@ export function applyXp(character, delta) {
     const gain = (hpGainPerLevel(character.hitDie || 8, character.stats?.con ?? 10) + (character.hpBonusPerLevel || 0)) * levelsGained;
     vitals = { ...vitals, maxHp: vitals.maxHp + gain, hp: vitals.hp + gain };
   }
-  return { character: { ...character, xp, level: newLevel, vitals }, levelsGained };
+  const next = { ...character, xp, level: newLevel, vitals };
+  return { character: levelsGained > 0 ? syncSpellcasting(next) : next, levelsGained };
 }
 
 // ── Custom Perk Tree ─────────────────────────────────────────────

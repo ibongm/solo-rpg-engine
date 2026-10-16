@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Dices, Star } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
-import { requestSkillCheck, unlockPerk, castSpell, prepareSpells } from '../../store/localActions.js';
-import { hasSpellcasting, castableSpells, slotsFor, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit, classSpellOptions } from '../../engine/spellEngine.js';
+import { requestSkillCheck, unlockPerk, castSpell, prepareSpells, learnSpells } from '../../store/localActions.js';
+import { hasSpellcasting, castableSpells, slotLevels, castSlotOptions, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit, preparableSpells, ordinal } from '../../engine/spellEngine.js';
+import { hasPendingSpellChoices, pendingSpellChoices, spellChoiceOptions } from '../../engine/spellProgress.js';
 import { SPELLS_BY_ID } from '../../config/spells.js';
 import { ABILITIES, ABILITY_LABELS, SKILL_KEYS, SKILLS, skillLabel } from '../../config/genreSkins.js';
 import { languageName } from '../../config/srdReskins.js';
@@ -236,25 +237,31 @@ function SheetDetails({ character, weather, skin }) {
 }
 
 function spellSummary(character, spell) {
-  if (spell.kind === 'attack') return `${spell.attackType} attack · ${spellDamageDice(character, spell)} ${spell.damageType}`;
-  if (spell.kind === 'save') return `${spell.save.toUpperCase()} save · ${spellDamageDice(character, spell)} ${spell.damageType}${spell.onSave === 'half' ? ' (half)' : ''}`;
-  if (spell.kind === 'auto') return `auto-hit · ${spell.damage} ${spell.damageType}`;
-  if (spell.kind === 'heal') return `heal ${spell.heal} + mod`;
+  const area = spell.area ? ' · area' : '';
+  if (spell.kind === 'attack') return `${spell.attackType} attack · ${spellDamageDice(character, spell)} ${spell.damageType}${spell.upcast ? ` (+${spell.upcast}/slot)` : ''}`;
+  if (spell.kind === 'save') return `${spell.save.toUpperCase()} save · ${spellDamageDice(character, spell)} ${spell.damageType}${spell.onSave === 'half' ? ' (half)' : ''}${spell.upcast ? ` (+${spell.upcast}/slot)` : ''}${area}`;
+  if (spell.kind === 'auto') return `auto-hit · ${spellDamageDice(character, spell)} ${spell.damageType}${spell.upcast ? ` (+${spell.upcast}/slot)` : ''}${area}`;
+  if (spell.kind === 'heal') return `heal ${spell.heal}${spell.healMod === false ? '' : ' + mod'}${spell.upcast ? ` (+${spell.upcast}/slot)` : ''}`;
   if (spell.kind === 'temp_hp') return `${spell.tempHp} temp HP`;
   return spell.concentration ? 'utility · concentration' : 'utility';
 }
 
-/** Spells: attack bonus, save DC, slots, active effects, cast buttons and re-preparing. */
+function levelLabel(spell, terms) {
+  return spell.level === 0 ? terms.cantrips?.replace(/s$/, '') || 'Cantrip' : `${ordinal(spell.level)} level`;
+}
+
+/** Spells: attack bonus, save DC, slots per level, active effects, cast (with slot choice), learning and re-preparing. */
 function SpellsPanel({ character, campaign, locked, busy }) {
   const [targetId, setTargetId] = useState('');
   const [editing, setEditing] = useState(false);
+  const [slotPick, setSlotPick] = useState({});
   const sc = character.spellcasting;
   const terms = character.terms || { spells: 'Spells', cantrips: 'Cantrips' };
-  const slots = slotsFor(character, 1);
-  const spells = castableSpells(character);
+  const levels = slotLevels(character);
+  const spells = castableSpells(character).slice().sort((a, b) => a.spell.level - b.spell.level || a.spell.name.localeCompare(b.spell.name));
   const enemies = (campaign.combat?.enemies || []).filter((e) => e.health_tier !== 'Defeated');
-  const canPrepare = sc && (sc.prepared?.length || sc.spellbook?.length) && !sc.known?.length;
-  const pool = sc?.spellbook?.length ? sc.spellbook : classSpellOptions(character.classId).level1.filter((id) => !(sc?.alwaysPrepared || []).includes(id));
+  const canPrepare = sc && (sc.prepared?.length || sc.spellbook?.length || ['cleric', 'druid', 'paladin'].includes(character.classId)) && !sc.known?.length;
+  const pool = canPrepare ? preparableSpells(character) : [];
   const [picked, setPicked] = useState(sc?.prepared || []);
   const limit = sc ? preparedLimit(character) : 0;
   const disabled = locked || busy || Boolean(campaign.pendingRoll);
@@ -267,17 +274,27 @@ function SpellsPanel({ character, campaign, locked, busy }) {
           attack {fmtMod(spellAttackBonus(character))} · DC {spellSaveDc(character)}
         </span>
       </div>
-      {slots.max > 0 && (
-        <div className="mb-2 flex items-center gap-1.5 text-xs">
-          <span className="text-muted">1st-level slots{sc?.pact ? ' (short rest)' : ''}:</span>
-          {Array.from({ length: slots.max }, (_, i) => (
-            <span key={i} className={`h-3 w-3 rounded-full border-theme ${i < slots.left ? 'border-accent bg-accent' : 'border-line'}`} aria-hidden="true" />
+      {levels.length > 0 && (
+        <div className="mb-2 space-y-0.5 text-xs">
+          {levels.map((s) => (
+            <div key={s.level} className="flex items-center gap-1.5">
+              <span className="w-24 shrink-0 text-muted">
+                {ordinal(s.level)}-level{sc?.pact ? ' (pact)' : ''}
+              </span>
+              <span className="flex flex-wrap gap-1">
+                {Array.from({ length: s.max }, (_, i) => (
+                  <span key={i} className={`h-3 w-3 rounded-full border-theme ${i < s.left ? 'border-accent bg-accent' : 'border-line'}`} aria-hidden="true" />
+                ))}
+              </span>
+              <span className="font-mono">
+                {s.left}/{s.max}
+              </span>
+            </div>
           ))}
-          <span className="font-mono">
-            {slots.left}/{slots.max}
-          </span>
+          {sc?.pact && <p className="text-[11px] text-muted">Pact slots return on a short rest.</p>}
         </div>
       )}
+      {!locked && hasPendingSpellChoices(character) && <LearnSpells character={character} terms={terms} disabled={disabled || campaign.combat?.inCombat} />}
       {(character.activeEffects || []).length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
           {character.activeEffects.map((e) => (
@@ -302,15 +319,19 @@ function SpellsPanel({ character, campaign, locked, busy }) {
       )}
       <ul className="space-y-1">
         {spells.map(({ spell, source }) => {
-          const noSlot = spell.level > 0 && slots.left <= 0;
+          const arcanum = source === 'arcanum';
+          const arcanumSpent = arcanum && sc?.arcanumUsed?.[spell.level];
+          const options = arcanum ? [] : castSlotOptions(character, spell);
+          const noSlot = spell.level > 0 && (arcanum ? arcanumSpent : options.length === 0);
+          const chosen = options.includes(Number(slotPick[spell.id])) ? Number(slotPick[spell.id]) : options[0];
           return (
             <li key={spell.id} className="flex items-start gap-2 rounded-theme bg-surface-2/50 px-2 py-1.5">
               <details className="min-w-0 flex-1 text-xs">
                 <summary className="cursor-pointer list-none">
                   <span className="text-sm font-semibold">{spell.name}</span>{' '}
                   <span className="text-muted">
-                    {spell.level === 0 ? terms.cantrips?.replace(/s$/, '') || 'Cantrip' : '1st'}
-                    {source === 'species' ? ` · ${character.speciesName}` : source === 'domain' ? ' · domain' : ''}
+                    {levelLabel(spell, terms)}
+                    {source === 'species' ? ` · ${character.speciesName}` : source === 'domain' ? ' · domain' : arcanum ? ` · arcanum${arcanumSpent ? ' (spent)' : ''}` : ''}
                   </span>
                   <div className="font-mono text-[10px] text-muted">{spellSummary(character, spell)}</div>
                 </summary>
@@ -318,9 +339,31 @@ function SpellsPanel({ character, campaign, locked, busy }) {
                   {spell.desc} <span className="opacity-70">({spell.castingTime}, {spell.range})</span>
                 </p>
               </details>
-              <button className="btn shrink-0 px-2.5 py-1 text-xs" disabled={disabled || noSlot} onClick={() => castSpell(spell.id, { targetId: targetId || enemies[0]?.id })} title={noSlot ? 'No slots left' : `Cast ${spell.name}`}>
-                Cast
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                {options.length > 1 && (
+                  <select
+                    className="input w-auto px-1 py-1 text-base sm:text-xs"
+                    value={chosen}
+                    onChange={(e) => setSlotPick({ ...slotPick, [spell.id]: Number(e.target.value) })}
+                    aria-label={`Slot level for ${spell.name}`}
+                    title="Cast with a higher slot to upcast"
+                  >
+                    {options.map((l) => (
+                      <option key={l} value={l}>
+                        {ordinal(l)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  className="btn px-2.5 py-1 text-xs"
+                  disabled={disabled || noSlot}
+                  onClick={() => castSpell(spell.id, { targetId: targetId || enemies[0]?.id, slotLevel: arcanum || spell.level === 0 ? null : chosen })}
+                  title={noSlot ? (arcanum ? 'Returns after a long rest' : 'No slots left') : `Cast ${spell.name}${chosen && chosen > spell.level ? ` at ${ordinal(chosen)} level` : ''}`}
+                >
+                  Cast
+                </button>
+              </div>
             </li>
           );
         })}
@@ -336,16 +379,7 @@ function SpellsPanel({ character, campaign, locked, busy }) {
               <div className="label">
                 Prepare up to {limit} ({picked.length}/{limit})
               </div>
-              <div className="flex flex-wrap gap-1">
-                {pool.map((id) => {
-                  const on = picked.includes(id);
-                  return (
-                    <button key={id} className={`pill cursor-pointer ${on ? 'border-accent bg-accent text-accent-ink' : ''}`} onClick={() => setPicked(on ? picked.filter((x) => x !== id) : picked.length < limit ? [...picked, id] : picked)}>
-                      {SPELLS_BY_ID[id]?.name || id}
-                    </button>
-                  );
-                })}
-              </div>
+              <SpellPickList ids={pool} picked={picked} max={limit} onChange={setPicked} />
               <div className="flex gap-2 pt-1">
                 <button className="btn-primary px-2 py-1 text-xs" disabled={!picked.length} onClick={async () => { await prepareSpells(picked); setEditing(false); }}>
                   Save
@@ -359,5 +393,121 @@ function SpellsPanel({ character, campaign, locked, busy }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** Toggle pills grouped by spell level. */
+function SpellPickList({ ids, picked, max, onChange }) {
+  const byLevel = {};
+  for (const id of ids) {
+    const sp = SPELLS_BY_ID[id];
+    if (sp) (byLevel[sp.level] ??= []).push(sp);
+  }
+  return (
+    <div className="space-y-1">
+      {Object.keys(byLevel)
+        .map(Number)
+        .sort((a, b) => a - b)
+        .map((lvl) => (
+          <div key={lvl}>
+            <div className="text-[10px] uppercase tracking-wide text-muted">{lvl === 0 ? 'Cantrips' : `${ordinal(lvl)} level`}</div>
+            <div className="flex flex-wrap gap-1">
+              {byLevel[lvl]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((sp) => {
+                  const on = picked.includes(sp.id);
+                  return (
+                    <button
+                      key={sp.id}
+                      type="button"
+                      className={`pill cursor-pointer ${on ? 'border-accent bg-accent text-accent-ink' : ''}`}
+                      title={sp.desc}
+                      aria-pressed={on}
+                      onClick={() => onChange(on ? picked.filter((x) => x !== sp.id) : picked.length < max ? [...picked, sp.id] : picked)}
+                    >
+                      {sp.name}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+/** Picks owed after levelling up: new cantrips, spells known, spellbook pages, Mystic Arcanum. */
+function LearnSpells({ character, terms, disabled }) {
+  const pending = pendingSpellChoices(character);
+  const opts = spellChoiceOptions(character);
+  const [cantrips, setCantrips] = useState([]);
+  const [known, setKnown] = useState([]);
+  const [spellbook, setSpellbook] = useState([]);
+  const [arcanum, setArcanum] = useState({});
+  const [open, setOpen] = useState(false);
+  const total = pending.cantrips + pending.known + pending.spellbook + pending.arcanum.length;
+  const chosen = cantrips.length + known.length + spellbook.length + Object.keys(arcanum).length;
+
+  if (!open) {
+    return (
+      <button className="btn-primary mb-2 w-full py-1.5 text-xs" onClick={() => setOpen(true)} disabled={disabled}>
+        Learn new {terms.spells.toLowerCase()} ({total} to choose)
+      </button>
+    );
+  }
+  return (
+    <div className="card-inset mb-2 space-y-2 p-2 text-xs">
+      {pending.cantrips > 0 && (
+        <div>
+          <div className="label">
+            {terms.cantrips || 'Cantrips'} ({cantrips.length}/{pending.cantrips})
+          </div>
+          <SpellPickList ids={opts.cantrips} picked={cantrips} max={pending.cantrips} onChange={setCantrips} />
+        </div>
+      )}
+      {pending.known > 0 && (
+        <div>
+          <div className="label">
+            {terms.spells} known — up to {ordinal(pending.maxLevel)} level ({known.length}/{pending.known})
+          </div>
+          <SpellPickList ids={opts.known} picked={known} max={pending.known} onChange={setKnown} />
+        </div>
+      )}
+      {pending.spellbook > 0 && (
+        <div>
+          <div className="label">
+            Spellbook — up to {ordinal(pending.maxLevel)} level ({spellbook.length}/{pending.spellbook})
+          </div>
+          <SpellPickList ids={opts.spellbook} picked={spellbook} max={pending.spellbook} onChange={setSpellbook} />
+        </div>
+      )}
+      {pending.arcanum.map((lvl) => (
+        <div key={lvl}>
+          <div className="label">Mystic Arcanum — one {ordinal(lvl)}-level spell (once per long rest)</div>
+          <SpellPickList ids={opts.arcanum[lvl] || []} picked={arcanum[lvl] ? [arcanum[lvl]] : []} max={1} onChange={(ids) => setArcanum(ids.length ? { ...arcanum, [lvl]: ids[ids.length - 1] } : Object.fromEntries(Object.entries(arcanum).filter(([k]) => Number(k) !== lvl)))} />
+        </div>
+      ))}
+      <div className="flex gap-2 pt-1">
+        <button
+          className="btn-primary px-2 py-1 text-xs"
+          disabled={disabled || chosen === 0}
+          onClick={async () => {
+            const ok = await learnSpells({ cantrips, known, spellbook, arcanum });
+            if (ok !== null) {
+              setCantrips([]);
+              setKnown([]);
+              setSpellbook([]);
+              setArcanum({});
+              setOpen(false);
+            }
+          }}
+        >
+          Learn {chosen > 0 ? `(${chosen})` : ''}
+        </button>
+        <button className="btn px-2 py-1 text-xs" onClick={() => setOpen(false)}>
+          Later
+        </button>
+      </div>
+    </div>
   );
 }

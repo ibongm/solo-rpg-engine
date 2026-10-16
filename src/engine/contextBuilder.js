@@ -7,7 +7,7 @@
  */
 import { effectiveAc, effectiveMaxHp } from './diceEngine.js';
 import { questsEnabled, xpMode, xpPace, milestoneCooldown } from './deeds.js';
-import { castableSpells } from './spellEngine.js';
+import { castableSpells, slotLevels, ordinal } from './spellEngine.js';
 import { languageName } from '../config/srdReskins.js';
 
 export const ACTIVE_TURNS_IN_CONTEXT = 14;
@@ -129,6 +129,8 @@ export function buildDmContext({ campaign, character, turns = [], diary = [], co
         tempHp: character.vitals.tempHp || 0,
         ac: effectiveAc(character),
         conditions: character.vitals.conditions || [],
+        // Slots change every cast, so they live in the dynamic (uncached) part of the context.
+        spellSlots: slotLevels(character).map((s) => `${ordinal(s.level)} ${s.left}/${s.max}`),
       },
       currency: character.currency,
       equipment: (character.inventory || []).filter((i) => i.equipped).map((i) => i.name),

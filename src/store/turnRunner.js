@@ -22,7 +22,7 @@ function nextTurnIndex(turns) {
 
 function toastEvents(events) {
   const { toast } = S();
-  const important = events.filter((e) => ['milestone', 'level_up', 'xp', 'recruited', 'departed', 'quest_new', 'quest_completed', 'quest_failed', 'quest_expired', 'downed', 'revived', 'loot', 'map', 'stable', 'death', 'massive_damage'].includes(e.type));
+  const important = events.filter((e) => ['milestone', 'level_up', 'spells_to_learn', 'xp', 'recruited', 'departed', 'quest_new', 'quest_completed', 'quest_failed', 'quest_expired', 'downed', 'revived', 'loot', 'map', 'stable', 'death', 'massive_damage'].includes(e.type));
   for (const e of important.slice(0, 4)) toast(e.text, e.tone === 'danger' ? 'error' : e.tone === 'success' ? 'success' : e.tone === 'warning' ? 'warning' : 'info');
 }
 

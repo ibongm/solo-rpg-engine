@@ -9,7 +9,8 @@ import { unlockPerk as unlockPerkPure } from '../engine/progression.js';
 import { rollDice, buildCheck } from '../engine/diceEngine.js';
 import { effectiveMaxHp } from '../engine/diceEngine.js';
 import { skillLabel } from '../config/genreSkins.js';
-import { canCast, resolveSaveSpell, resolveHealing, resolveAuto, resolveTempHp, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit } from '../engine/spellEngine.js';
+import { canCast, resolveSaveSpell, resolveAreaSaveSpell, resolveHealing, resolveAuto, resolveTempHp, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit, preparableSpells, ordinal } from '../engine/spellEngine.js';
+import { applySpellChoices } from '../engine/spellProgress.js';
 import {
   merchantState,
   buy as buyPure,
@@ -352,29 +353,33 @@ function spellTarget(campaign, targetId) {
  *  - attack spells roll a spell attack (immediately vs a revealed AC, otherwise the storyteller calls it with the true AC);
  *  - save spells roll the target's save openly against your DC;
  *  - healing, Magic Missile and temporary HP are rolled here;
- *  - a leveled spell spends a slot.
+ *  - a leveled spell spends a slot (any free slot of its level or higher — higher slots upcast it);
+ *  - area save spells roll damage once and an open save for each engaged enemy;
+ *  - a Mystic Arcanum spell is spent until the next long rest instead of using a slot.
  */
-export function castSpell(spellId, { targetId = null } = {}) {
+export function castSpell(spellId, { targetId = null, slotLevel = null } = {}) {
   const { campaign, character, busy, retryQueue } = S();
   if (!campaign || !character || busy || retryQueue || campaign.meta.status !== 'active') {
     S().toast('You cannot cast right now.', 'warning');
     return false;
   }
-  const v = canCast(character, spellId);
+  const v = canCast(character, spellId, slotLevel);
   if (!v.ok) {
     S().toast(v.error, 'warning');
     return false;
   }
   const spell = v.spell;
-  const slot = v.slotLevel ? { spell_slot_used: v.slotLevel } : {};
+  const slot = v.arcanum ? { arcanum_used: spell.level } : v.slotLevel ? { spell_slot_used: v.slotLevel } : {};
+  const at = v.slotLevel || null; // slot level for dice; null = base level
+  const upcast = v.slotLevel && v.slotLevel > spell.level;
   const target = spellTarget(campaign, targetId);
   const term = character.terms?.spell || 'spell';
-  const cast = `I cast ${spell.name}`;
+  const cast = `I cast ${spell.name}${upcast ? ` at ${ordinal(v.slotLevel)} level` : ''}${v.arcanum ? ' (Mystic Arcanum)' : ''}`;
   S().setMobileSheet?.(null);
 
   if (spell.kind === 'attack') {
     if (target?.inspected && Number.isInteger(target.revealed_ac)) {
-      const check = buildCheck({ character, skillOrStat: { kind: 'attack', key: 'spell', spellId: spell.id }, spell, dc: target.revealed_ac, weather: campaign.worldState?.weather, skin: campaign.skin, reason: `${spell.name} at ${target.name} (revealed AC ${target.revealed_ac})` });
+      const check = buildCheck({ character, skillOrStat: { kind: 'attack', key: 'spell', spellId: spell.id }, spell, spellSlot: at, dc: target.revealed_ac, weather: campaign.worldState?.weather, skin: campaign.skin, reason: `${spell.name} at ${target.name} (revealed AC ${target.revealed_ac})` });
       S().openRollPrompt({
         origin: 'ai',
         title: check.label,
@@ -396,13 +401,27 @@ export function castSpell(spellId, { targetId = null } = {}) {
       stance: 'Aggressive',
       engine: slot,
       engineNotes: [
-        `The player casts the ${term} ${spell.name} (${spell.attackType} spell attack +${spellAttackBonus(character, spell.id)}, ${spellDamageDice(character, spell)} ${spell.damageType} on a hit)${target ? ` at [${target.id}] ${target.name}` : ''}. ${spell.desc} Request roll_request skill_or_stat "spell_attack:${spell.id}" with dc = the target's true AC; narrate only the casting.`,
+        `The player casts the ${term} ${spell.name}${upcast ? ` with a ${ordinal(v.slotLevel)}-level slot` : ''} (${spell.attackType} spell attack +${spellAttackBonus(character, spell.id)}, ${spellDamageDice(character, spell, at)} ${spell.damageType} on a hit)${target ? ` at [${target.id}] ${target.name}` : ''}. ${spell.desc} Request roll_request skill_or_stat "spell_attack:${spell.id}${upcast ? `:${v.slotLevel}` : ''}" with dc = the target's true AC; narrate only the casting.`,
       ],
     });
   }
 
+  const engaged = (campaign.combat?.enemies || []).filter((e) => e.health_tier !== 'Defeated');
+  if (spell.kind === 'save' && spell.area && engaged.length > 1) {
+    const a = resolveAreaSaveSpell(character, spell, engaged, undefined, at);
+    const lines = a.results.map((r) => `${r.target.name}: d20 ${r.save.natural} + ${r.save.bonus} = ${r.save.total} vs DC ${a.dc} — ${r.save.saved ? 'saved' : 'failed'}, ${r.dealt} ${spell.damageType}`);
+    const dmgText = a.damage ? `Damage ${a.damage.expr} → [${a.damage.rolls.join(', ')}] = ${a.damage.total}.` : '';
+    S().toast(`${spell.name}: ${dmgText} ${lines.join('; ')}`, 'success', 9000);
+    return submitAction({
+      kind: 'roll_result',
+      text: `${cast}, catching ${a.results.length} foes in the area.`,
+      engine: slot,
+      engineNotes: [`Engine resolved the area ${term} ${spell.name} (${spell.save.toUpperCase()} saves, ${spell.onSave === 'half' ? 'half damage on a save' : 'no damage on a save'}): ${dmgText} ${a.results.map((r) => `[${r.target.id}] ${r.target.name} ${r.save.saved ? 'saved' : 'failed'} (${r.save.total} vs DC ${a.dc}) and takes ${r.dealt}`).join('; ')}. Narrate exactly these results and move each target's health_tier by its damage.`],
+    });
+  }
+
   if (spell.kind === 'save' && target) {
-    const r = resolveSaveSpell(character, spell);
+    const r = resolveSaveSpell(character, spell, undefined, at);
     const outcome = `${target.name} rolls a ${spell.save.toUpperCase()} save: d20 ${r.save.natural} + ${r.save.bonus} = ${r.save.total} vs DC ${r.save.dc} — ${r.save.saved ? 'saved' : 'failed'}.${r.damage ? ` Damage ${r.damage.expr} → [${r.damage.rolls.join(', ')}] = ${r.damage.total}; ${r.dealt} ${spell.damageType} damage dealt.` : ''}`;
     S().toast(outcome, r.save.saved ? 'info' : 'success', 7000);
     return submitAction({
@@ -434,7 +453,7 @@ export function castSpell(spellId, { targetId = null } = {}) {
   }
 
   if (spell.kind === 'auto' && target) {
-    const dmg = resolveAuto(character, spell);
+    const dmg = resolveAuto(character, spell, undefined, at);
     return submitAction({
       kind: 'roll_result',
       text: `${cast} at ${target.name}: ${dmg.total} ${spell.damageType} damage.`,
@@ -444,7 +463,7 @@ export function castSpell(spellId, { targetId = null } = {}) {
   }
 
   if (spell.kind === 'heal') {
-    const h = resolveHealing(character, spell);
+    const h = resolveHealing(character, spell, undefined, at);
     const text = `${cast} on myself: healed ${h.total} (${h.roll.expr} → [${h.roll.rolls.join(', ')}] + ${h.mod}${h.life ? ` + ${h.life} Disciple of Life` : ''}).`;
     return submitAction({ text, engine: { ...slot, hp_delta: h.total }, engineNotes: [`${text} The engine already applied the healing; narrate it.`] });
   }
@@ -472,9 +491,17 @@ export const prepareSpells = (ids) =>
     if (campaign.combat?.inCombat) throw new Error('You cannot change prepared spells during combat.');
     const sc = character.spellcasting;
     if (!sc) throw new Error('No spellcasting.');
-    const pool = sc.spellbook?.length ? sc.spellbook : null;
+    const pool = preparableSpells(character);
     const limit = preparedLimit(character);
-    const clean = Array.from(new Set(ids)).filter((id) => (!pool || pool.includes(id)) && !(sc.alwaysPrepared || []).includes(id)).slice(0, limit);
+    const clean = Array.from(new Set(ids)).filter((id) => pool.includes(id)).slice(0, limit);
     if (!clean.length) throw new Error('Prepare at least one spell.');
     await commitLocalAction({ uid, campaign, character, characterNext: { ...character, spellcasting: { ...sc, prepared: clean } } });
   }, 'Prepared spells updated.');
+
+/** Learn the cantrips, spells, spellbook pages or Mystic Arcanum owed after levelling up (validated by the engine). */
+export const learnSpells = (picks) =>
+  run(async () => {
+    const { campaign, character, uid } = guard();
+    const characterNext = applySpellChoices(character, picks);
+    await commitLocalAction({ uid, campaign, character, characterNext });
+  }, 'New spells learned.');

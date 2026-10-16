@@ -11,6 +11,7 @@ import { syncCombat, applyHpChange, emptyCombat } from './combatEngine.js';
 import { placeNodeNear, connect, safeId, normalizeCodexEntry } from './campaignFactory.js';
 import { uid, getDefaultRng } from './rng.js';
 import { xpMode, xpPace, xpFineTune, questsEnabled, listDeeds, scoreDeeds, resolveMilestone } from './deeds.js';
+import { syncSpellcasting, hasPendingSpellChoices } from './spellProgress.js';
 import { ABILITIES, SKILL_KEYS } from '../config/genreSkins.js';
 
 export const MAX_HP_DELTA_FACTOR = 2;
@@ -197,15 +198,19 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
   if (engine.buffs && typeof engine.buffs === 'object') camp.buffs = { ...(camp.buffs || {}), ...engine.buffs };
 
   // ── Spellcasting (engine) ──
+  ch = syncSpellcasting(ch); // slot maximums follow class + level (heals saves from before levelled spells)
   if (ch.spellcasting?.slots) {
     const slots = ch.spellcasting.slots;
     const lvl = int(engine.spell_slot_used);
     if (lvl >= 1 && lvl <= (slots.max || []).length) {
       slots.used = (slots.max || []).map((m, i) => clamp((slots.used?.[i] || 0) + (i === lvl - 1 ? 1 : 0), 0, m));
     }
+    const arc = int(engine.arcanum_used);
+    if (arc >= 6 && arc <= 9 && ch.spellcasting.arcanum?.[arc]) ch.spellcasting.arcanumUsed = { ...(ch.spellcasting.arcanumUsed || {}), [arc]: true };
     if (engine.restore_spell_slots === 'all' || (engine.restore_spell_slots === 'pact' && ch.spellcasting.pact)) {
-      const had = (slots.used || []).some((u) => u > 0);
+      const had = (slots.used || []).some((u) => u > 0) || (engine.restore_spell_slots === 'all' && Object.values(ch.spellcasting.arcanumUsed || {}).some(Boolean));
       slots.used = (slots.max || []).map(() => 0);
+      if (engine.restore_spell_slots === 'all' && ch.spellcasting.arcanumUsed) ch.spellcasting.arcanumUsed = {};
       if (had) events.push({ type: 'slots', text: 'Spell slots recovered.', tone: 'success' });
     }
   }
@@ -430,7 +435,10 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
     const r = applyXp(ch, xpGain);
     ch = r.character;
     if (mode === 'deeds') events.push({ type: 'xp', text: `+${xpGain} XP${xpWhy ? ` — ${xpWhy}` : ''}`, tone: 'success' });
-    if (r.levelsGained > 0) events.push({ type: 'level_up', text: `Level up! You are now level ${ch.level}. (+1 perk point)`, tone: 'success' });
+    if (r.levelsGained > 0) {
+      events.push({ type: 'level_up', text: `Level up! You are now level ${ch.level}. (+1 perk point)`, tone: 'success' });
+      if (hasPendingSpellChoices(ch)) events.push({ type: 'spells_to_learn', text: `New ${(ch.terms?.spells || 'spells').toLowerCase()} to learn — open the Character tab.`, tone: 'success' });
+    }
   }
 
   // ── Narrative bookkeeping ──

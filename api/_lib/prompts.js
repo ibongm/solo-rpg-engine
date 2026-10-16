@@ -132,6 +132,7 @@ export function renderDynamic(ctx, action) {
   if (d.vitals) {
     const v = d.vitals;
     lines.push(`Protagonist vitals: HP ${v.hp}/${v.maxHp}${v.tempHp ? ` (+${v.tempHp} temp)` : ''}, AC ${v.ac}, conditions: ${v.conditions?.length ? v.conditions.join(', ') : 'none'}. ${d.currency?.label || 'Currency'}: ${d.currency?.amount ?? 0}.`);
+    if (v.spellSlots?.length) lines.push(`Spell slots left: ${v.spellSlots.join(', ')}.`);
     if (v.hp === 0) lines.push('The protagonist is at 0 HP and making death saving throws.');
   }
   if (d.equipment?.length) lines.push(`Equipped: ${d.equipment.join(', ')}.`);

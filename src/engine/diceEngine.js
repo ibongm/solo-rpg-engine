@@ -143,11 +143,35 @@ export function spellAbilityFor(character, spellId) {
 }
 
 /** Cantrip damage grows at levels 5, 11 and 17: '1d10' → '2d10' → '3d10' → '4d10'. */
+function castSlot(spell, slot) {
+  return spell.level > 0 ? Math.max(spell.level, Math.min(9, Number(slot) || spell.level)) : 0;
+}
+
+/** Damage dice for a spell: cantrips scale with character level, leveled spells with the slot used. */
+export function spellDamageAt(spell, characterLevel, slot = null) {
+  if (!spell?.damage) return null;
+  if (spell.scales) return scaleCantripDice(spell.damage, characterLevel);
+  return upcastDice(spell.damage, spell.upcast, castSlot(spell, slot) - spell.level);
+}
+
 export function scaleCantripDice(expr, level) {
   const m = /^(\d+)d(\d+)(.*)$/.exec(String(expr || ''));
   if (!m) return expr;
   const mult = level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1;
   return `${Number(m[1]) * mult}d${m[2]}${m[3]}`;
+}
+
+/**
+ * Adds upcast dice to the base die count: upcastDice('8d6', '1d6', 2) → '10d6'.
+ * (SRD upcasts always add the spell's own die type.)
+ */
+export function upcastDice(expr, upcast, times) {
+  const n = Math.max(0, Math.floor(Number(times) || 0));
+  if (!expr || !upcast || !n) return expr;
+  const base = /^(\d+)d(\d+)(.*)$/.exec(String(expr));
+  const add = /^(\d+)d(\d+)$/.exec(String(upcast));
+  if (!base || !add) return expr;
+  return `${Number(base[1]) + Number(add[1]) * n}d${base[2]}${base[3]}`;
 }
 
 export function equippedWeapon(character) {
@@ -235,10 +259,13 @@ const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
 export function normalizeSkillOrStat(raw, skin) {
   const s = norm(raw);
   if (!s) return { kind: 'ability', key: 'wis' };
-  // "spell_attack:fire_bolt" (requested by the storyteller for a cast the engine set up)
+  // "spell_attack:fire_bolt" or "spell_attack:acid_arrow:3" (cast with a 3rd-level slot) — requested by the
+  // storyteller for a cast the engine set up.
   if (s.startsWith('spell_attack') || s.startsWith('spellattack')) {
     const id = s.split(':')[1] || null;
-    return { kind: 'attack', key: 'spell', spellId: id && SPELLS_BY_ID[id] ? id : null };
+    const slot = /:\s*([1-9])\s*$/.exec(String(raw))?.[1]; // read from raw: norm() drops digits
+    const spellSlot = slot ? Number(slot) : null;
+    return { kind: 'attack', key: 'spell', spellId: id && SPELLS_BY_ID[id] ? id : null, ...(spellSlot ? { spellSlot } : {}) };
   }
   if (s.startsWith('attack') || s.includes('attack_roll') || s === 'to_hit') {
     const ranged = s.includes('ranged');
@@ -289,7 +316,7 @@ export function normalizeSkillOrStat(raw, skin) {
  * @param {object} [p.weapon]            explicit weapon for attacks (defaults to equipped)
  * @param {Array<{label:string,value:number}>} [p.extraModifiers]
  */
-export function buildCheck({ character, skillOrStat, dc = null, advantage = 'normal', weather = null, skin = null, weapon = null, spell = null, extraModifiers = [], reason = '' }) {
+export function buildCheck({ character, skillOrStat, dc = null, advantage = 'normal', weather = null, skin = null, weapon = null, spell = null, spellSlot = null, extraModifiers = [], reason = '' }) {
   const desc = typeof skillOrStat === 'object' && skillOrStat ? skillOrStat : normalizeSkillOrStat(skillOrStat, skin);
   const spellDef = spell || (desc.key === 'spell' && desc.spellId ? SPELLS_BY_ID[desc.spellId] : null);
   const level = character?.level || 1;
@@ -443,7 +470,7 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
           ranged: isRanged,
         }
       : null,
-    spell: spellDef ? { id: spellDef.id, name: spellDef.name, damageDice: spellDef.damage ? (spellDef.scales ? scaleCantripDice(spellDef.damage, level) : spellDef.damage) : null, damageType: spellDef.damageType || null } : null,
+    spell: spellDef ? { id: spellDef.id, name: spellDef.name, slot: castSlot(spellDef, spellSlot || desc.spellSlot), damageDice: spellDamageAt(spellDef, level, spellSlot || desc.spellSlot), damageType: spellDef.damageType || null } : null,
     reason,
   };
 }
