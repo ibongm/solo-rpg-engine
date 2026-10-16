@@ -117,7 +117,25 @@ export const GENRES = {
   },
   post_apoc: {
     id: 'post_apoc',
-    label: 'Post-Apocalyptic',
+    label: 'Post-Apocalyptic Survival',
+    theme: 'frontier_noir',
+    currencyLabel: 'Barter / Ammo',
+    skillLabels: {
+      ...BASE_SKILL_LABELS,
+      arcana: 'Mechanics & Electronics',
+      history: 'Local Knowledge',
+      nature: 'Foraging',
+      religion: 'Faith & Morale',
+      sleight_of_hand: 'Lockpicking',
+    },
+    loreSkill: 'history',
+    archetypes: ['Survivor', 'Scout', 'Field Medic', 'Community Leader', 'Marksman', 'Scavenger', 'Engineer', 'Sheriff'],
+    rationLabel: 'Canned Food',
+    blurb: 'The grid is down. Ration the ammo, hold the walls, and decide who you let inside. (The Walking Dead, Jericho, The Last of Us.)',
+  },
+  wasteland: {
+    id: 'wasteland',
+    label: 'Mutant Wasteland',
     theme: 'frontier_noir',
     currencyLabel: 'Caps',
     skillLabels: {
@@ -133,7 +151,7 @@ export const GENRES = {
     loreSkill: 'nature',
     archetypes: ['Scavenger', 'Road Warrior', 'Wasteland Medic', 'Mutant', 'Raider', 'Tinker', 'Prophet'],
     rationLabel: 'Canned Food',
-    blurb: 'Rust, radiation and the long road through what remains.',
+    blurb: 'Rust, radiation, mutants and the long road through what remains. (Fallout, Mad Max.)',
   },
   custom: {
     id: 'custom',

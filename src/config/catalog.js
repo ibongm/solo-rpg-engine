@@ -38,6 +38,11 @@ const SHARED_MATERIALS = {
     T('Synth-Weave Patch', 'material', { craftingTags: ['cloth'], value: 3, description: 'Self-sealing fabric patch.' }),
   ],
   post_apoc: [
+    T('Wild Herbs', 'material', { craftingTags: ['herb'], value: 2, description: 'Yarrow and plantain, foraged from the verge.' }),
+    T('Scrap Metal', 'material', { craftingTags: ['metal', 'upgrade'], value: 4, description: 'Rebar, sheet steel and hose clamps.' }),
+    T('Clean Cloth', 'material', { craftingTags: ['cloth'], value: 2, description: 'Boiled cotton strips for bandages.' }),
+  ],
+  wasteland: [
     T('Mutfruit Pulp', 'material', { craftingTags: ['herb'], value: 2, description: 'Smells awful. Heals anyway.' }),
     T('Scrap Metal', 'material', { craftingTags: ['metal', 'upgrade'], value: 4, description: 'Twisted rebar and sheet steel.' }),
     T('Rag Strips', 'material', { craftingTags: ['cloth'], value: 1, description: 'Mostly clean.' }),
@@ -85,6 +90,19 @@ export const MERCHANT_TEMPLATES = {
     ...SHARED_MATERIALS.scifi,
   ],
   post_apoc: [
+    T('Revolver', 'weapon', { damageDice: '1d8', craftingTags: ['ranged'], value: 30, description: 'Six rounds. Make them count.' }),
+    T('Hunting Rifle', 'weapon', { damageDice: '1d10', craftingTags: ['ranged', 'heavy'], value: 45, description: 'Bolt-action, scoped, loud.' }),
+    T('Machete', 'weapon', { damageDice: '1d8', craftingTags: ['melee'], value: 8, description: 'Quiet work for close threats.' }),
+    T('Combat Knife', 'weapon', { damageDice: '1d4', craftingTags: ['melee', 'finesse'], value: 5, description: 'Always within reach.' }),
+    T('Leather Jacket', 'armor', { statModifiers: { ac: 1 }, value: 8, description: '+1 AC.' }),
+    T('Riot Gear', 'armor', { statModifiers: { ac: 3, stealth: -1 }, value: 60, description: '+3 AC, -1 Stealth.' }),
+    T('First-Aid Kit', 'consumable', { statModifiers: { heal: '2d4+2' }, craftingTags: ['healing'], value: 30, description: 'Restores 2d4+2 HP.' }),
+    T('Antibiotics', 'consumable', { craftingTags: ['antidote'], value: 35, description: 'Cures Poisoned.' }),
+    T('Canned Food', 'consumable', { craftingTags: ['ration'], value: 2, description: 'One day of food.' }),
+    T('Binoculars', 'key', { statModifiers: { perception: 2 }, value: 40, description: '+2 Perception when equipped.' }),
+    ...SHARED_MATERIALS.post_apoc,
+  ],
+  wasteland: [
     T('Pipe Rifle', 'weapon', { damageDice: '1d8', craftingTags: ['ranged'], value: 18, description: 'Held together with hope.' }),
     T('Sawed-Off', 'weapon', { damageDice: '2d4', craftingTags: ['ranged'], value: 25, description: 'Close-range scattergun.' }),
     T('Rebar Club', 'weapon', { damageDice: '1d8', craftingTags: ['melee', 'heavy'], value: 4, description: 'Heavy and honest.' }),
@@ -95,7 +113,7 @@ export const MERCHANT_TEMPLATES = {
     T('Rad-Flush', 'consumable', { craftingTags: ['antidote'], value: 25, description: 'Cures Poisoned.' }),
     T('Canned Food', 'consumable', { craftingTags: ['ration'], value: 2, description: 'One day of food.' }),
     T('Geiger Counter', 'key', { statModifiers: { survival: 2 }, value: 45, description: '+2 Scavenging when equipped.' }),
-    ...SHARED_MATERIALS.post_apoc,
+    ...SHARED_MATERIALS.wasteland,
   ],
 };
 MERCHANT_TEMPLATES.custom = MERCHANT_TEMPLATES.fantasy;
@@ -105,7 +123,8 @@ export const STARTER_KIT_NAMES = {
   fantasy: ['Longsword', 'Leather Armor', 'Potion of Healing', 'Trail Rations', 'Trail Rations', 'Trail Rations'],
   frontier_noir: ['Six-Shooter', 'Duster Coat', 'Snake Oil Tonic', 'Hardtack & Jerky', 'Hardtack & Jerky', 'Hardtack & Jerky'],
   scifi: ['Pulse Pistol', 'Flex-Weave Suit', 'Med-Injector', 'Nutrient Bars', 'Nutrient Bars', 'Nutrient Bars'],
-  post_apoc: ['Pipe Rifle', 'Tire Armor', 'Stimpak', 'Canned Food', 'Canned Food', 'Canned Food'],
+  post_apoc: ['Revolver', 'Leather Jacket', 'First-Aid Kit', 'Canned Food', 'Canned Food', 'Canned Food'],
+  wasteland: ['Pipe Rifle', 'Tire Armor', 'Stimpak', 'Canned Food', 'Canned Food', 'Canned Food'],
   custom: ['Longsword', 'Leather Armor', 'Potion of Healing', 'Trail Rations', 'Trail Rations', 'Trail Rations'],
 };
 

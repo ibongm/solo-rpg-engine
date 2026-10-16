@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `.github/ISSUE_TEMPLATE/bug_report.md`: Issue template for reporting bugs and unexpected gameplay engine behaviors.
 * `.github/ISSUE_TEMPLATE/feature_request.md`: Issue template for suggesting engine enhancements or narrative mechanics.
 * `docs/`: Dedicated documentation directory consolidating setup guides, legal notices, and architectural specifications.
+* Genre languages: every SRD language now has a genre equivalent (e.g. Dwarvish → `Morse & Ham Code` in post-apocalyptic, `Heavy-Worlder Cant` in sci-fi, `Cornish Miner's Cant` in frontier noir), plus genre-only extra languages to pick. `languageName()` / `availableLanguages()` in `src/config/srdReskins.js`.
+* `wasteland` genre ("Mutant Wasteland"): the previous mutant/Fallout-style post-apocalyptic reskin, kept as its own genre with its own languages, shop and starter kit.
+* `docs/update-0.1.md`: the 8-part feature & UX upgrade spec being implemented.
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.
@@ -25,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Relocated `rpg-blueprint.md` to `docs/rpg-blueprint.md`.
 * `package.json`: Declared `engines.node >=22.12.0`; README and `docs/SETUP.md` updated to match.
 * Bundle splitting: `GuildhallHub`, `GameStage`, and the Map tab (`@xyflow/react`) are lazy-loaded, and React and Firebase are emitted as separate long-cached vendor chunks (`vite.config.js` `codeSplitting` groups). Initial JS dropped from ~1.5 MB to ~930 kB (minified).
+* `post_apoc` is now grounded Post-Apocalyptic Survival (The Walking Dead, Jericho, The Last of Us): Upbringings, Roles and Before-the-Fall backgrounds, realistic gear names, `Barter / Ammo` currency, grounded skill labels, shop, starter kit and scene-art style. Existing post-apocalyptic characters show the new names.
+* Characters store languages in their genre's words at creation (like tools); the sheet, print view and storyteller context also translate older characters on display.
+* `AGENTS.md`: rewritten agent guide (commands, stack, project map, engine rules, code style, boundaries).
 
 ### Security
 * Forced `@grpc/grpc-js` to `^1.14.6` under `@firebase/firestore` via npm `overrides`, clearing GHSA-m9gg-hp2v-232j and GHSA-f596-whhp-79r4 (server-side advisories; the browser build never bundled grpc). `npm audit --omit=dev` now reports 0 vulnerabilities; remaining findings are dev-only Tailwind v3 tooling.

@@ -5,7 +5,7 @@
  */
 import { ABILITIES, SKILL_KEYS } from '../config/genreSkins.js';
 import { ITEMS, ITEM_FILTERS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, FIGHTING_STYLES, DRAGON_ANCESTRIES } from '../config/srd.js';
-import { speciesName, className, backgroundName, itemName, genreTerms } from '../config/srdReskins.js';
+import { speciesName, className, backgroundName, itemName, genreTerms, languageName } from '../config/srdReskins.js';
 import { GENRES } from '../config/genreSkins.js';
 import { abilityMod } from './progression.js';
 import { uid, rollDie, getDefaultRng } from './rng.js';
@@ -340,7 +340,8 @@ export function buildSrdCharacter(build) {
     ...(bg.tools || []),
   ].map((t) => toolLabel(t, genre));
 
-  const languages = Array.from(new Set([...(sp.languages || []), ...(cls.extraLanguages || []), ...(build.languages || [])])).slice(0, 8);
+  // Stored in the genre's own words (like tools), so every consumer — sheet, print, storyteller — reads them as-is.
+  const languages = Array.from(new Set([...(sp.languages || []), ...(cls.extraLanguages || []), ...(build.languages || [])].map((l) => languageName(l, genre)))).slice(0, 8);
 
   const ancestry = sp.ancestryChoice ? DRAGON_ANCESTRIES.find((d) => d.id === build.dragonAncestry) : null;
   const style = cls.fightingStyle ? FIGHTING_STYLES.find((f) => f.id === build.fightingStyle) : null;

@@ -19,6 +19,7 @@ import { toggleEquip } from './stateMutator.js';
 import { applyXp } from './progression.js';
 import { CLASSES } from '../config/srd.js';
 import { seededRng } from './rng.js';
+import { languageName, availableLanguages } from '../config/srdReskins.js';
 
 const base = { str: 15, dex: 14, con: 13, int: 8, wis: 12, cha: 10 };
 
@@ -96,9 +97,41 @@ describe('character builder', () => {
     const [gun] = srdInventoryItems('hand_crossbow', 1, 'frontier_noir');
     expect(gun.name).toBe('Six-Shooter');
     expect(gun.damageDice).toBe('1d6');
-    const { character } = fighter({ genre: 'post_apoc' });
+    const { character } = fighter({ genre: 'wasteland' });
     expect(character.classOrArchetype).toBe('Road Warrior');
     expect(character.currency.label).toBe('Caps');
+    const grounded = fighter({ genre: 'post_apoc' }).character;
+    expect(grounded.classOrArchetype).toBe('Marksman / Veteran');
+    expect(grounded.speciesName).toBe('Town Survivor');
+    expect(grounded.currency.label).toBe('Barter / Ammo');
+  });
+
+  it('gives every genre its own languages instead of Elvish and Dwarvish', () => {
+    const SRD_ONLY = ['Dwarvish', 'Elvish', 'Draconic', 'Infernal', 'Orc', 'Gnomish', 'Halfling'];
+    const cases = {
+      post_apoc: ['English (Local)', 'Morse & Ham Code'],
+      scifi: ['Galactic Standard', 'Heavy-Worlder Cant'],
+      frontier_noir: ['English', "Cornish Miner's Cant"],
+      wasteland: ['Wasteland Trade-Talk', 'Vault Code'],
+    };
+    for (const [genre, expected] of Object.entries(cases)) {
+      const { character } = fighter({ genre, speciesId: 'dwarf' });
+      expect(character.languages).toEqual(expected);
+      expect(character.languages.some((l) => SRD_ONLY.includes(l))).toBe(false);
+    }
+    expect(fighter({ speciesId: 'dwarf' }).character.languages).toEqual(['Common', 'Dwarvish']);
+  });
+
+  it('translates picked languages and keeps genre names stable', () => {
+    const { character } = fighter({ genre: 'post_apoc', speciesId: 'human', backgroundId: 'scholar', languages: ['Mandarin', 'Elvish'] });
+    expect(character.languages).toEqual(['English (Local)', 'Mandarin', 'Trail Sign']);
+    expect(languageName('Trail Sign', 'post_apoc')).toBe('Trail Sign');
+    expect(languageName('Elvish', 'fantasy')).toBe('Elvish');
+    expect(availableLanguages('fantasy')).toContain('Elvish');
+    const apoc = availableLanguages('post_apoc');
+    expect(apoc).toContain('ASL / Hand Signals');
+    expect(apoc).not.toContain('Elvish');
+    expect(new Set(apoc).size).toBe(apoc.length);
   });
 
   it('rolls starting wealth visibly and deterministically', () => {

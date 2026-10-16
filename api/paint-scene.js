@@ -15,7 +15,8 @@ const GENRE_STYLE = {
   fantasy: 'painterly high-fantasy illustration, warm candlelit palette, oil on canvas texture, cinematic composition',
   frontier_noir: 'gritty western comic-noir panel, heavy ink lines, stark cream and charcoal palette with a single crimson accent, dramatic shadows',
   scifi: 'cinematic science-fiction concept art, deep obsidian shadows, cyan and emerald neon rim light, volumetric haze',
-  post_apoc: 'post-apocalyptic concept art, rust and dust palette, harsh sunlight, desolate scale',
+  post_apoc: 'grounded post-apocalyptic survival drama still, overgrown suburbs and abandoned highways, muted natural palette, overcast light, photographic realism',
+  wasteland: 'post-apocalyptic concept art, rust and dust palette, harsh sunlight, desolate scale',
   custom: 'cinematic illustrated concept art, rich lighting, detailed environment',
 };
 

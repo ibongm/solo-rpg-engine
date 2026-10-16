@@ -5,8 +5,8 @@ import { createCharacterDoc, updateCharacterDoc } from '../../firebase/db.js';
 import { callApi } from '../../firebase/api.js';
 import { ABILITIES, ABILITY_LABELS, GENRES, GENRE_IDS, SKILL_KEYS, SKILLS, buildSkin, skillLabel } from '../../config/genreSkins.js';
 import { DEFAULT_MODEL, computeTextCost } from '../../config/models.js';
-import { SPECIES, CLASSES, BACKGROUNDS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, FIGHTING_STYLES, DRAGON_ANCESTRIES, LANGUAGES, ITEMS, WEAPONS, ARMOR, GEAR, ANY_LABELS } from '../../config/srd.js';
-import { genreTerms, speciesName, speciesBlurb, className, backgroundName, itemName, itemLabel } from '../../config/srdReskins.js';
+import { SPECIES, CLASSES, BACKGROUNDS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, FIGHTING_STYLES, DRAGON_ANCESTRIES, ITEMS, WEAPONS, ARMOR, GEAR, ANY_LABELS } from '../../config/srd.js';
+import { genreTerms, speciesName, speciesBlurb, className, backgroundName, itemName, itemLabel, languageName, availableLanguages } from '../../config/srdReskins.js';
 import { POINT_BUY_BUDGET, POINT_BUY_COSTS, STANDARD_ARRAY, abilityMod, pointBuyCost, roll4d6DropLowest, normalizePerkTree } from '../../engine/progression.js';
 import {
   finalAbilityScores,
@@ -319,7 +319,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
           </div>
           <div>
             <label className="label" htmlFor="cc-genre">Genre</label>
-            <select id="cc-genre" className="input text-base sm:text-sm" value={genre} disabled={!canRebuild} onChange={(e) => setGenre(e.target.value)}>
+            <select id="cc-genre" className="input text-base sm:text-sm" value={genre} disabled={!canRebuild} onChange={(e) => { setGenre(e.target.value); setLanguages([]); }}>
               {GENRE_IDS.map((g) => (
                 <option key={g} value={g}>
                   {GENRES[g].label}
@@ -399,7 +399,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
                   </select>
                 </div>
               )}
-              <p className="text-xs text-muted">Languages: {sp.languages.join(', ')}{sp.extraLanguages ? ` + ${sp.extraLanguages} of your choice (pick in the ${terms.background} step)` : ''}.</p>
+              <p className="text-xs text-muted">Languages: {sp.languages.map((l) => languageName(l, genre)).join(', ')}{sp.extraLanguages ? ` + ${sp.extraLanguages} of your choice (pick in the ${terms.background} step)` : ''}.</p>
             </div>
           )}
         </div>
@@ -516,7 +516,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
               </p>
               {extraLanguageCount > 0 && (
                 <PickRow label={`Extra languages (${languages.length}/${extraLanguageCount})`}>
-                  {LANGUAGES.filter((l) => !(sp?.languages || []).includes(l)).map((l) => (
+                  {availableLanguages(genre).filter((l) => !(sp?.languages || []).some((own) => languageName(own, genre) === l)).map((l) => (
                     <Chip key={l} on={languages.includes(l)} onClick={() => setLanguages(toggleIn(languages, l, extraLanguageCount))}>
                       {l}
                     </Chip>

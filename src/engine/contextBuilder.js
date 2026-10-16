@@ -8,6 +8,7 @@
 import { effectiveAc, effectiveMaxHp } from './diceEngine.js';
 import { questsEnabled, xpMode, milestoneCooldown } from './deeds.js';
 import { castableSpells } from './spellEngine.js';
+import { languageName } from '../config/srdReskins.js';
 
 export const ACTIVE_TURNS_IN_CONTEXT = 14;
 export const MAX_CODEX_CARDS = 8;
@@ -113,7 +114,7 @@ export function buildDmContext({ campaign, character, turns = [], diary = [], co
         subclass: character.subclass || null,
         savingThrows: character.savingThrows || [],
         expertise: character.expertise || [],
-        languages: character.languages || [],
+        languages: (character.languages || []).map((l) => languageName(l, character.genre)),
         features: (character.features || []).map((f) => ({ name: f.name, description: f.description })),
         spells: castableSpells(character).map((c) => c.spell.name),
       },

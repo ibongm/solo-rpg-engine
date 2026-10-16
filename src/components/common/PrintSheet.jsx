@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { Printer, X } from 'lucide-react';
 import { ABILITIES, ABILITY_LABELS, SKILL_KEYS, SKILLS, skillLabel } from '../../config/genreSkins.js';
+import { languageName } from '../../config/srdReskins.js';
 import { abilityMod, proficiencyBonus } from '../../engine/progression.js';
 import { effectiveAc, effectiveMaxHp, fmtMod, itemModifier } from '../../engine/diceEngine.js';
 
@@ -92,7 +93,7 @@ export default function PrintSheet({ character, skin, onClose }) {
               </div>
             ))}
             <div className="mt-1 text-xs">
-              Languages: {(character.languages || []).join(', ')} · Armor: {(character.armorProficiencies || []).join(', ') || 'none'} · Weapons: {(character.weaponProficiencies || []).join(', ')}
+              Languages: {(character.languages || []).map((l) => languageName(l, character.genre)).join(', ')} · Armor: {(character.armorProficiencies || []).join(', ') || 'none'} · Weapons: {(character.weaponProficiencies || []).join(', ')}
             </div>
           </div>
         )}

@@ -3,11 +3,17 @@
  * Fantasy and Custom use the SRD names unchanged. Any id missing from a genre map
  * falls back to its SRD name.
  */
-import { ITEMS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID } from './srd.js';
+import { ITEMS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, LANGUAGES } from './srd.js';
 
 export const RESKINS = {
   frontier_noir: {
     terms: { species: 'Origin', class: 'Calling', background: 'Past', spells: 'Hexes', cantrips: 'Tricks', spell: 'hex' },
+    languages: {
+      Common: 'English', Dwarvish: "Cornish Miner's Cant", Elvish: 'Gaelic', Giant: 'Navajo', Gnomish: 'German', Goblin: 'Yiddish',
+      Halfling: 'Dutch', Orc: 'Lakota', Abyssal: 'Haitian Creole', Celestial: 'Church Latin', Draconic: 'Spanish', 'Deep Speech': 'Cantonese',
+      Infernal: 'Grimoire Tongue', Primordial: 'Telegraph Morse', Sylvan: 'Plains Sign Talk', Undercommon: 'Outlaw Cant',
+    },
+    extraLanguages: ['French', 'Italian', 'Russian', 'Card-Sharp Signals'],
     species: {
       dwarf: { name: 'Hard-Rock Miner', blurb: 'Stocky folk from the mountain camps — tough as iron, steady underground.' },
       elf: { name: 'Ghost-Blooded', blurb: 'Pale, sharp-eyed drifters with a touch of something uncanny.' },
@@ -44,6 +50,13 @@ export const RESKINS = {
   },
   scifi: {
     terms: { species: 'Species', class: 'Role', background: 'Background', spells: 'Psionics', cantrips: 'Basic Psi', spell: 'psionic power' },
+    languages: {
+      Common: 'Galactic Standard', Dwarvish: 'Heavy-Worlder Cant', Elvish: 'Sylphid High-Speech', Giant: 'Colossi Rumble', Gnomish: 'Gnomari Techcant',
+      Goblin: 'Spacer Pidgin', Halfling: 'Station Patois', Orc: 'Gene-Brute Battle-Cant', Abyssal: 'Hive Chitter', Celestial: 'High Synod',
+      Draconic: 'Draconid Battle-Sign', 'Deep Speech': 'Xeno-Signal', Infernal: 'Void-Touched Whisper', Primordial: 'Binary / Machine Code',
+      Sylvan: 'Terraformer Bio-Song', Undercommon: 'Outer-Rim Creole',
+    },
+    extraLanguages: ['Encrypted Fleet Code', 'Old Earth English', 'Corporate Legal-Speak', 'Xenolinguistics'],
     species: {
       dwarf: { name: 'Heavy-Worlder', blurb: 'Dense-boned colonists from high-gravity mining worlds.' },
       elf: { name: 'Sylphid', blurb: 'Long-lived, graceful offworlders with keen senses and old minds.' },
@@ -79,7 +92,56 @@ export const RESKINS = {
     },
   },
   post_apoc: {
+    terms: { species: 'Upbringing', class: 'Role', background: 'Before the Fall', spells: 'Tactics & Grit', cantrips: 'Field Tricks', spell: 'tactic' },
+    languages: {
+      Common: 'English (Local)', Dwarvish: 'Morse & Ham Code', Elvish: 'Trail Sign', Giant: 'Russian', Gnomish: 'Technical Jargon', Goblin: 'Scavenger Cant',
+      Halfling: 'Spanish', Orc: 'Prison Slang', Abyssal: 'Arabic', Celestial: 'Old-World Latin', Draconic: 'Military Radio Code', 'Deep Speech': 'Mandarin',
+      Infernal: 'ASL / Hand Signals', Primordial: 'French', Sylvan: 'Medical Jargon', Undercommon: 'Black-Market Code',
+    },
+    extraLanguages: ['German', 'Vietnamese', 'Portuguese'],
+    species: {
+      dwarf: { name: 'Homesteader / Prepper', blurb: 'Stocky, resilient rural folk raised on well water, canned stores and hard labor.' },
+      elf: { name: 'Backcountry Hunter', blurb: 'Sharp-eyed woodsfolk who move quietly and keep watch while resting.' },
+      halfling: { name: 'Urban Scavenger', blurb: 'Nimble, cool-headed survivors who slip past hordes and patrols unseen.' },
+      human: { name: 'Town Survivor', blurb: 'Everyday citizens who adapted fast when the grid went down.' },
+      dragonborn: { name: 'Breacher / Pyro Tech', blurb: 'Broad-shouldered heavy-gear specialists carrying improvised incendiary and chemical charges.' },
+      gnome: { name: 'Ham-Radio Tinker', blurb: 'Clever electronics and mechanical specialists who keep generators and radios alive.' },
+      half_elf: { name: 'Drifter / Courier', blurb: 'Road-tested go-betweens who bridge isolated settlements.' },
+      half_orc: { name: 'Enforcer / Brawler', blurb: 'Scarred, relentless fighters who refuse to stay down when hit.' },
+      tiefling: { name: 'Night-Watch Outcast', blurb: 'Hardened survivors used to darkness, fire and distrust.' },
+    },
+    classes: {
+      barbarian: 'Brawler', bard: 'Community Leader', cleric: 'Field Medic', druid: 'Forager', fighter: 'Marksman / Veteran', monk: 'Close-Quarters Survivor',
+      paladin: 'Sheriff / Protector', ranger: 'Scout', rogue: 'Scavenger', sorcerer: 'Instinctual Tactician', warlock: 'Faction Operative', wizard: 'Engineer / Strategist',
+    },
+    backgrounds: {
+      acolyte: 'First Responder', veteran: 'National Guard / Police', urchin: 'Runaway', scholar: 'Town Teacher / Doctor', wanderer: 'Long-Haul Trucker',
+      swindler: 'Black-Market Broker', folk_hero: 'Small-Town Mayor / Farmer', noble: 'Politician / Executive', performer: 'Radio Host', healer: 'ER Nurse / Paramedic', custom: 'Your Own Past',
+    },
+    items: {
+      club: 'Baseball Bat', dagger: 'Hunting Knife', greatclub: 'Crowbar', handaxe: 'Hatchet', javelin: 'Sharpened Pole', light_hammer: 'Claw Hammer',
+      mace: 'Tire Iron', quarterstaff: 'Walking Stick', sickle: 'Garden Sickle', spear: 'Pipe Spear', light_crossbow: '.22 Rifle', dart: 'Throwing Knife',
+      shortbow: 'Recurve Bow', sling: 'Slingshot', battleaxe: 'Camp Axe', flail: 'Bike Chain', glaive: 'Pole Machete', greataxe: 'Fire Axe',
+      greatsword: 'Katana', halberd: 'Pole Axe', lance: 'Rebar Lance', longsword: 'Machete', maul: 'Sledgehammer', morningstar: 'Nail Bat',
+      pike: 'Pike Pole', rapier: 'Bayonet', scimitar: 'Kukri', shortsword: 'Combat Knife', trident: 'Pitchfork', war_pick: 'Pickaxe',
+      warhammer: 'Framing Hammer', whip: 'Bullwhip', blowgun: 'Blowgun', hand_crossbow: 'Pistol', heavy_crossbow: 'Shotgun', longbow: 'Hunting Rifle', net: 'Fishing Net',
+      padded: 'Layered Hoodie', leather: 'Leather Jacket', studded_leather: 'Motorcycle Leathers', hide: 'Canvas Hunting Coat', chain_shirt: 'Kevlar Vest', scale_mail: 'Sports Pads & Duct Tape',
+      breastplate: 'Police Vest', half_plate: 'SWAT Armor', ring_mail: 'Layered Riot Pads', chain_mail: 'Riot Armor', splint: 'Plate Carrier', plate: 'Bomb Suit', shield: 'Riot Shield',
+      arrows: 'Rifle Rounds (20)', bolts: 'Ammo Box (20)', sling_bullets: 'Ball Bearings (20)', needles: 'Darts (50)',
+      component_pouch: 'Tool Pouch', arcane_focus: 'Field Notebook', druidic_focus: "Forager's Satchel", holy_symbol: 'First-Responder Badge', spellbook: 'Tactics Notebook',
+      burglars_pack: "Looter's Bag", diplomats_pack: "Negotiator's Kit", dungeoneers_pack: 'Flashlight & Rope Kit', entertainers_pack: "Radio Host's Kit",
+      explorers_pack: 'Bug-Out Bag', priests_pack: "Medic's Bag", scholars_pack: "Teacher's Satchel", rations: 'Canned Food', potion_healing: 'First-Aid Kit',
+    },
+  },
+  wasteland: {
     terms: { species: 'Strain', class: 'Path', background: 'Before', spells: 'Mutations', cantrips: 'Minor Mutations', spell: 'mutation' },
+    languages: {
+      Common: 'Wasteland Trade-Talk', Dwarvish: 'Vault Code', Elvish: 'Pure-Strain Speech', Giant: 'Behemoth Rumble', Gnomish: 'Junk-Tinker Cant',
+      Goblin: 'Raider Cant', Halfling: 'Tunnel Whistle', Orc: 'Brute Grunt', Abyssal: 'Cult Glossolalia', Celestial: 'Old-World Scripture',
+      Draconic: 'Scaled Hiss', 'Deep Speech': 'Machine Static', Infernal: 'Rad-Glow Whisper', Primordial: 'Pre-War English',
+      Sylvan: 'Green-Sage Root-Talk', Undercommon: 'Sewer Sign',
+    },
+    extraLanguages: ['Caravan Pidgin', 'Radio Morse'],
     species: {
       dwarf: { name: 'Bunker-Born', blurb: 'Raised underground in the old vaults — squat, tough, radiation-hardy.' },
       elf: { name: 'Pure-Strain', blurb: 'Rare, unmutated folk with sharp senses and long lives.' },
@@ -147,4 +209,19 @@ export function itemLabel(id, genre) {
   const name = itemName(id, genre);
   const base = ITEMS[id]?.name;
   return base && name !== base ? `${name} (${base})` : name;
+}
+
+/**
+ * Genre name for an SRD language ("Dwarvish" → "Morse & Ham Code" in post_apoc).
+ * Names that are already genre names (or unknown) pass through, so it is safe to apply twice.
+ */
+export function languageName(lang, genre) {
+  return RESKINS[genre]?.languages?.[lang] || lang;
+}
+
+/** Languages a character of this genre can pick: the SRD list in fantasy/custom, otherwise the genre's own tongues. */
+export function availableLanguages(genre) {
+  const r = RESKINS[genre];
+  if (!r?.languages) return LANGUAGES.slice();
+  return Array.from(new Set([...LANGUAGES.map((l) => r.languages[l] || l), ...(r.extraLanguages || [])]));
 }

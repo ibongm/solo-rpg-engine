@@ -5,6 +5,7 @@ import { requestSkillCheck, unlockPerk, castSpell, prepareSpells } from '../../s
 import { hasSpellcasting, castableSpells, slotsFor, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit, classSpellOptions } from '../../engine/spellEngine.js';
 import { SPELLS_BY_ID } from '../../config/spells.js';
 import { ABILITIES, ABILITY_LABELS, SKILL_KEYS, SKILLS, skillLabel } from '../../config/genreSkins.js';
+import { languageName } from '../../config/srdReskins.js';
 import { abilityMod, proficiencyBonus, xpForNextLevel, XP_THRESHOLDS, perkPointsAvailable } from '../../engine/progression.js';
 import { buildCheck, effectiveAbility, fmtMod } from '../../engine/diceEngine.js';
 import { Meter } from '../common/ui.jsx';
@@ -207,7 +208,7 @@ function SheetDetails({ character, weather, skin }) {
               </p>
             )}
             <p>
-              <strong>Languages:</strong> {(character.languages || []).join(', ')}
+              <strong>Languages:</strong> {(character.languages || []).map((l) => languageName(l, character.genre)).join(', ')}
               {character.darkvision ? ` · Darkvision ${character.darkvision} ft` : ''}
               {character.size === 'small' ? ' · Small' : ''}
             </p>
