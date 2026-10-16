@@ -195,6 +195,26 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
     ch.companionRoster = (ch.companionRoster || []).map((c) => (c.isRecruited ? { ...c, hp: c.maxHp } : c));
   }
   if (engine.buffs && typeof engine.buffs === 'object') camp.buffs = { ...(camp.buffs || {}), ...engine.buffs };
+
+  // ── Spellcasting (engine) ──
+  if (ch.spellcasting?.slots) {
+    const slots = ch.spellcasting.slots;
+    const lvl = int(engine.spell_slot_used);
+    if (lvl >= 1 && lvl <= (slots.max || []).length) {
+      slots.used = (slots.max || []).map((m, i) => clamp((slots.used?.[i] || 0) + (i === lvl - 1 ? 1 : 0), 0, m));
+    }
+    if (engine.restore_spell_slots === 'all' || (engine.restore_spell_slots === 'pact' && ch.spellcasting.pact)) {
+      const had = (slots.used || []).some((u) => u > 0);
+      slots.used = (slots.max || []).map(() => 0);
+      if (had) events.push({ type: 'slots', text: 'Spell slots recovered.', tone: 'success' });
+    }
+  }
+  if (engine.clear_active_effects) ch.activeEffects = [];
+  if (engine.active_effect && engine.active_effect.id) {
+    const eff = { id: String(engine.active_effect.id).slice(0, 40), name: String(engine.active_effect.name || engine.active_effect.id).slice(0, 60), concentration: Boolean(engine.active_effect.concentration) };
+    const kept = (ch.activeEffects || []).filter((e) => e.id !== eff.id && !(eff.concentration && e.concentration));
+    ch.activeEffects = [...kept, eff];
+  }
   if (engine.campaignPatch && typeof engine.campaignPatch === 'object') {
     for (const [k, v] of Object.entries(engine.campaignPatch)) if (MUTABLE_CAMPAIGN_FIELDS.includes(k)) camp[k] = clone(v);
   }
@@ -245,6 +265,11 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
   }
   ch.vitals.hp = clamp(ch.vitals.hp, 0, maxHp);
   if ((ch.vitals.deathSaves?.failures ?? 0) >= 3) died = true;
+  // Dropping to 0 HP breaks concentration.
+  if (ch.vitals.hp <= 0 && (ch.activeEffects || []).some((e) => e.concentration)) {
+    ch.activeEffects = ch.activeEffects.filter((e) => !e.concentration);
+    events.push({ type: 'concentration', text: 'Concentration broken.', tone: 'warning' });
+  }
 
   // ── Conditions ──
   const addConds = [...(engine.conditions_added || []), ...(su.conditions_added || [])].map((c) => String(c).toLowerCase().trim()).filter((c) => CONDITIONS.has(c));

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Dices, Star } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
-import { requestSkillCheck, unlockPerk } from '../../store/localActions.js';
+import { requestSkillCheck, unlockPerk, castSpell, prepareSpells } from '../../store/localActions.js';
+import { hasSpellcasting, castableSpells, slotsFor, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit, classSpellOptions } from '../../engine/spellEngine.js';
+import { SPELLS_BY_ID } from '../../config/spells.js';
 import { ABILITIES, ABILITY_LABELS, SKILL_KEYS, SKILLS, skillLabel } from '../../config/genreSkins.js';
 import { abilityMod, proficiencyBonus, xpForNextLevel, XP_THRESHOLDS, perkPointsAvailable } from '../../engine/progression.js';
 import { buildCheck, effectiveAbility, fmtMod } from '../../engine/diceEngine.js';
@@ -48,6 +50,8 @@ export default function Tab1Character() {
       </section>
 
       <SheetDetails character={character} weather={weather} skin={skin} />
+
+      {hasSpellcasting(character) && <SpellsPanel character={character} campaign={campaign} locked={locked} busy={busy} />}
 
       <section>
         <h3 className="section-title mb-1">Skills</h3>
@@ -221,6 +225,133 @@ function SheetDetails({ character, weather, skin }) {
             </ul>
           </div>
         </details>
+      )}
+    </section>
+  );
+}
+
+function spellSummary(character, spell) {
+  if (spell.kind === 'attack') return `${spell.attackType} attack · ${spellDamageDice(character, spell)} ${spell.damageType}`;
+  if (spell.kind === 'save') return `${spell.save.toUpperCase()} save · ${spellDamageDice(character, spell)} ${spell.damageType}${spell.onSave === 'half' ? ' (half)' : ''}`;
+  if (spell.kind === 'auto') return `auto-hit · ${spell.damage} ${spell.damageType}`;
+  if (spell.kind === 'heal') return `heal ${spell.heal} + mod`;
+  if (spell.kind === 'temp_hp') return `${spell.tempHp} temp HP`;
+  return spell.concentration ? 'utility · concentration' : 'utility';
+}
+
+/** Spells: attack bonus, save DC, slots, active effects, cast buttons and re-preparing. */
+function SpellsPanel({ character, campaign, locked, busy }) {
+  const [targetId, setTargetId] = useState('');
+  const [editing, setEditing] = useState(false);
+  const sc = character.spellcasting;
+  const terms = character.terms || { spells: 'Spells', cantrips: 'Cantrips' };
+  const slots = slotsFor(character, 1);
+  const spells = castableSpells(character);
+  const enemies = (campaign.combat?.enemies || []).filter((e) => e.health_tier !== 'Defeated');
+  const canPrepare = sc && (sc.prepared?.length || sc.spellbook?.length) && !sc.known?.length;
+  const pool = sc?.spellbook?.length ? sc.spellbook : classSpellOptions(character.classId).level1.filter((id) => !(sc?.alwaysPrepared || []).includes(id));
+  const [picked, setPicked] = useState(sc?.prepared || []);
+  const limit = sc ? preparedLimit(character) : 0;
+  const disabled = locked || busy || Boolean(campaign.pendingRoll);
+
+  return (
+    <section>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="section-title">{terms.spells}</h3>
+        <span className="font-mono text-xs text-muted">
+          attack {fmtMod(spellAttackBonus(character))} · DC {spellSaveDc(character)}
+        </span>
+      </div>
+      {slots.max > 0 && (
+        <div className="mb-2 flex items-center gap-1.5 text-xs">
+          <span className="text-muted">1st-level slots{sc?.pact ? ' (short rest)' : ''}:</span>
+          {Array.from({ length: slots.max }, (_, i) => (
+            <span key={i} className={`h-3 w-3 rounded-full border-theme ${i < slots.left ? 'border-accent bg-accent' : 'border-line'}`} aria-hidden="true" />
+          ))}
+          <span className="font-mono">
+            {slots.left}/{slots.max}
+          </span>
+        </div>
+      )}
+      {(character.activeEffects || []).length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {character.activeEffects.map((e) => (
+            <span key={e.id} className="pill border-info text-info">
+              {e.name}
+              {e.concentration ? ' ◎' : ''}
+            </span>
+          ))}
+        </div>
+      )}
+      {enemies.length > 0 && (
+        <label className="mb-2 flex items-center gap-2 text-xs">
+          Target
+          <select className="input py-1 text-base sm:text-xs" value={targetId || enemies[0].id} onChange={(e) => setTargetId(e.target.value)}>
+            {enemies.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} ({e.health_tier})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <ul className="space-y-1">
+        {spells.map(({ spell, source }) => {
+          const noSlot = spell.level > 0 && slots.left <= 0;
+          return (
+            <li key={spell.id} className="flex items-start gap-2 rounded-theme bg-surface-2/50 px-2 py-1.5">
+              <details className="min-w-0 flex-1 text-xs">
+                <summary className="cursor-pointer list-none">
+                  <span className="text-sm font-semibold">{spell.name}</span>{' '}
+                  <span className="text-muted">
+                    {spell.level === 0 ? terms.cantrips?.replace(/s$/, '') || 'Cantrip' : '1st'}
+                    {source === 'species' ? ` · ${character.speciesName}` : source === 'domain' ? ' · domain' : ''}
+                  </span>
+                  <div className="font-mono text-[10px] text-muted">{spellSummary(character, spell)}</div>
+                </summary>
+                <p className="mt-1 text-muted">
+                  {spell.desc} <span className="opacity-70">({spell.castingTime}, {spell.range})</span>
+                </p>
+              </details>
+              <button className="btn shrink-0 px-2.5 py-1 text-xs" disabled={disabled || noSlot} onClick={() => castSpell(spell.id, { targetId: targetId || enemies[0]?.id })} title={noSlot ? 'No slots left' : `Cast ${spell.name}`}>
+                Cast
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {canPrepare && !locked && (
+        <div className="mt-2">
+          {!editing ? (
+            <button className="btn-ghost text-xs" onClick={() => { setPicked(sc.prepared || []); setEditing(true); }} disabled={campaign.combat?.inCombat}>
+              Change prepared {terms.spells.toLowerCase()} ({(sc.prepared || []).length}/{limit})
+            </button>
+          ) : (
+            <div className="card-inset space-y-1 p-2 text-xs">
+              <div className="label">
+                Prepare up to {limit} ({picked.length}/{limit})
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {pool.map((id) => {
+                  const on = picked.includes(id);
+                  return (
+                    <button key={id} className={`pill cursor-pointer ${on ? 'border-accent bg-accent text-accent-ink' : ''}`} onClick={() => setPicked(on ? picked.filter((x) => x !== id) : picked.length < limit ? [...picked, id] : picked)}>
+                      {SPELLS_BY_ID[id]?.name || id}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button className="btn-primary px-2 py-1 text-xs" disabled={!picked.length} onClick={async () => { await prepareSpells(picked); setEditing(false); }}>
+                  Save
+                </button>
+                <button className="btn px-2 py-1 text-xs" onClick={() => setEditing(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </section>
   );

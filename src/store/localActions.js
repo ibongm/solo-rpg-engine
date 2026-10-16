@@ -9,6 +9,7 @@ import { unlockPerk as unlockPerkPure } from '../engine/progression.js';
 import { rollDice, buildCheck } from '../engine/diceEngine.js';
 import { effectiveMaxHp } from '../engine/diceEngine.js';
 import { skillLabel } from '../config/genreSkins.js';
+import { canCast, resolveSaveSpell, resolveHealing, resolveAuto, resolveTempHp, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit } from '../engine/spellEngine.js';
 import {
   merchantState,
   buy as buyPure,
@@ -339,3 +340,141 @@ export const removePin = (index) =>
     await commitCampaignSettings({ uid: user.uid, campaign, patch: { lorePinboard: (campaign.lorePinboard || []).filter((_, i) => i !== index) } });
   });
 
+// ── Spellcasting ─────────────────────────────────────────────────
+
+function spellTarget(campaign, targetId) {
+  const enemies = (campaign.combat?.enemies || []).filter((e) => e.health_tier !== 'Defeated');
+  return enemies.find((e) => e.id === targetId) || enemies[0] || null;
+}
+
+/**
+ * Casts a spell. All math is the engine's and visible:
+ *  - attack spells roll a spell attack (immediately vs a revealed AC, otherwise the storyteller calls it with the true AC);
+ *  - save spells roll the target's save openly against your DC;
+ *  - healing, Magic Missile and temporary HP are rolled here;
+ *  - a leveled spell spends a slot.
+ */
+export function castSpell(spellId, { targetId = null } = {}) {
+  const { campaign, character, busy, retryQueue } = S();
+  if (!campaign || !character || busy || retryQueue || campaign.meta.status !== 'active') {
+    S().toast('You cannot cast right now.', 'warning');
+    return false;
+  }
+  const v = canCast(character, spellId);
+  if (!v.ok) {
+    S().toast(v.error, 'warning');
+    return false;
+  }
+  const spell = v.spell;
+  const slot = v.slotLevel ? { spell_slot_used: v.slotLevel } : {};
+  const target = spellTarget(campaign, targetId);
+  const term = character.terms?.spell || 'spell';
+  const cast = `I cast ${spell.name}`;
+  S().setMobileSheet?.(null);
+
+  if (spell.kind === 'attack') {
+    if (target?.inspected && Number.isInteger(target.revealed_ac)) {
+      const check = buildCheck({ character, skillOrStat: { kind: 'attack', key: 'spell', spellId: spell.id }, spell, dc: target.revealed_ac, weather: campaign.worldState?.weather, skin: campaign.skin, reason: `${spell.name} at ${target.name} (revealed AC ${target.revealed_ac})` });
+      S().openRollPrompt({
+        origin: 'ai',
+        title: check.label,
+        subtitle: check.reason,
+        check,
+        withDamage: true,
+        onResolve: ({ result, damage }) =>
+          submitAction({
+            kind: 'roll_result',
+            text: `${cast} at ${target.name}: ${result.total} vs AC ${target.revealed_ac} — ${result.success ? `hit for ${damage?.total ?? 0} ${spell.damageType}` : 'miss'}.`,
+            roll: makeRollRecord(check, result, { damage: damage || null, targetId: target.id, targetName: target.name }),
+            engine: slot,
+          }),
+      });
+      return true;
+    }
+    return submitAction({
+      text: `${cast}${target ? ` at ${target.name}` : ''}.`,
+      stance: 'Aggressive',
+      engine: slot,
+      engineNotes: [
+        `The player casts the ${term} ${spell.name} (${spell.attackType} spell attack +${spellAttackBonus(character, spell.id)}, ${spellDamageDice(character, spell)} ${spell.damageType} on a hit)${target ? ` at [${target.id}] ${target.name}` : ''}. ${spell.desc} Request roll_request skill_or_stat "spell_attack:${spell.id}" with dc = the target's true AC; narrate only the casting.`,
+      ],
+    });
+  }
+
+  if (spell.kind === 'save' && target) {
+    const r = resolveSaveSpell(character, spell);
+    const outcome = `${target.name} rolls a ${spell.save.toUpperCase()} save: d20 ${r.save.natural} + ${r.save.bonus} = ${r.save.total} vs DC ${r.save.dc} — ${r.save.saved ? 'saved' : 'failed'}.${r.damage ? ` Damage ${r.damage.expr} → [${r.damage.rolls.join(', ')}] = ${r.damage.total}; ${r.dealt} ${spell.damageType} damage dealt.` : ''}`;
+    S().toast(outcome, r.save.saved ? 'info' : 'success', 7000);
+    return submitAction({
+      kind: 'roll_result',
+      text: `${cast} at ${target.name}: ${r.save.saved ? 'they resist' : 'it lands'}${r.damage ? ` — ${r.dealt} ${spell.damageType} damage` : ''}.`,
+      engine: slot,
+      roll: {
+        label: `${spell.name} — ${target.name}'s ${spell.save.toUpperCase()} save`,
+        kind: 'spell_save',
+        key: spell.id,
+        faces: [r.save.natural],
+        natural: r.save.natural,
+        total: r.save.total,
+        dc: r.save.dc,
+        success: !r.save.saved,
+        margin: r.save.dc - r.save.total,
+        critical: false,
+        fumble: false,
+        totalModifier: r.save.bonus,
+        advantage: 'normal',
+        breakdown: [{ label: 'Enemy save bonus', value: r.save.bonus }],
+        reason: spell.desc,
+        damage: r.damage ? { total: r.dealt, expr: r.damage.expr, rolls: r.damage.rolls } : null,
+        targetId: target.id,
+        targetName: target.name,
+      },
+      engineNotes: [`Engine resolved ${spell.name}: ${outcome} Narrate exactly this result and move the target's health_tier for ${r.dealt} damage.`],
+    });
+  }
+
+  if (spell.kind === 'auto' && target) {
+    const dmg = resolveAuto(character, spell);
+    return submitAction({
+      kind: 'roll_result',
+      text: `${cast} at ${target.name}: ${dmg.total} ${spell.damageType} damage.`,
+      engine: slot,
+      engineNotes: [`Engine resolved ${spell.name} (always hits): ${dmg.expr} → [${dmg.rolls.join(', ')}]${dmg.bonus ? ` +${dmg.bonus}` : ''} = ${dmg.total} ${spell.damageType} damage to [${target.id}] ${target.name}. Narrate it and move the health_tier accordingly.`],
+    });
+  }
+
+  if (spell.kind === 'heal') {
+    const h = resolveHealing(character, spell);
+    const text = `${cast} on myself: healed ${h.total} (${h.roll.expr} → [${h.roll.rolls.join(', ')}] + ${h.mod}${h.life ? ` + ${h.life} Disciple of Life` : ''}).`;
+    return submitAction({ text, engine: { ...slot, hp_delta: h.total }, engineNotes: [`${text} The engine already applied the healing; narrate it.`] });
+  }
+
+  if (spell.kind === 'temp_hp') {
+    const t = resolveTempHp(spell);
+    const text = `${cast}: ${t.total} temporary HP (${t.expr} → [${t.rolls.join(', ')}]${t.bonus ? ` +${t.bonus}` : ''}).`;
+    return submitAction({ text, engine: { ...slot, set_temp_hp: t.total }, engineNotes: [`${text} The engine already applied it; narrate it.`] });
+  }
+
+  // Utility spells (and damage spells cast with no enemy in view) are narrated by the storyteller.
+  const effect = spell.effect ? { active_effect: { id: spell.effect, name: spell.name, concentration: spell.concentration } } : {};
+  const dc = spell.kind === 'save' || /save\)/i.test(spell.desc) ? ` Save DC ${spellSaveDc(character, spell.id)} (the target's save must be requested as a visible roll or resolved openly; never decide it secretly).` : '';
+  return submitAction({
+    text: `${cast}.`,
+    engine: { ...slot, ...effect },
+    engineNotes: [`The player casts the ${term} ${spell.name}: ${spell.desc}${spell.concentration ? ' (concentration)' : ''}.${dc}${spell.effect ? ' The engine is tracking its mechanical effect.' : ''} Narrate the effect.`],
+  });
+}
+
+/** Re-prepare spells (Cleric, Druid, Wizard) outside of combat. */
+export const prepareSpells = (ids) =>
+  run(async () => {
+    const { campaign, character, uid } = guard();
+    if (campaign.combat?.inCombat) throw new Error('You cannot change prepared spells during combat.');
+    const sc = character.spellcasting;
+    if (!sc) throw new Error('No spellcasting.');
+    const pool = sc.spellbook?.length ? sc.spellbook : null;
+    const limit = preparedLimit(character);
+    const clean = Array.from(new Set(ids)).filter((id) => (!pool || pool.includes(id)) && !(sc.alwaysPrepared || []).includes(id)).slice(0, limit);
+    if (!clean.length) throw new Error('Prepare at least one spell.');
+    await commitLocalAction({ uid, campaign, character, characterNext: { ...character, spellcasting: { ...sc, prepared: clean } } });
+  }, 'Prepared spells updated.');

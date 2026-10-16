@@ -7,6 +7,7 @@
  */
 import { effectiveAc, effectiveMaxHp } from './diceEngine.js';
 import { questsEnabled, xpMode, milestoneCooldown } from './deeds.js';
+import { castableSpells } from './spellEngine.js';
 
 export const ACTIVE_TURNS_IN_CONTEXT = 14;
 export const MAX_CODEX_CARDS = 8;
@@ -114,6 +115,7 @@ export function buildDmContext({ campaign, character, turns = [], diary = [], co
         expertise: character.expertise || [],
         languages: character.languages || [],
         features: (character.features || []).map((f) => ({ name: f.name, description: f.description })),
+        spells: castableSpells(character).map((c) => c.spell.name),
       },
     },
     dynamic: {

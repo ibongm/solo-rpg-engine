@@ -84,6 +84,7 @@ export function renderStatic(ctx) {
   if (ch.skillProficiencies?.length) lines.push(`Proficient: ${ch.skillProficiencies.join(', ')}${ch.expertise?.length ? ` (expertise: ${ch.expertise.join(', ')})` : ''}.`);
   if (ch.savingThrows?.length) lines.push(`Saving throw proficiencies: ${ch.savingThrows.join(', ')}.`);
   if (ch.languages?.length) lines.push(`Languages: ${ch.languages.join(', ')}.`);
+  if (ch.spells?.length) lines.push(`Spells available (cast through the engine, which rolls attacks, saves and damage visibly): ${ch.spells.join(', ')}.`);
   if (ch.features?.length) lines.push(`Features & traits (honor them in narration; the engine handles all math): ${ch.features.map((f) => `${f.name} — ${clip(f.description, 140)}`).join('; ')}.`);
   if (ch.perks?.length) lines.push(`Unlocked perks: ${ch.perks.map((p) => `${p.name} (${clip(p.description, 120)})`).join('; ')}.`);
   if (ch.backstory) lines.push(`Backstory: ${clip(ch.backstory, 1200)}`);

@@ -9,6 +9,7 @@ import { speciesName, className, backgroundName, itemName, genreTerms } from '..
 import { GENRES } from '../config/genreSkins.js';
 import { abilityMod } from './progression.js';
 import { uid, rollDie, getDefaultRng } from './rng.js';
+import { CLASS_SPELL_LISTS } from '../config/spells.js';
 
 export const RULES_ID = 'srd51';
 export const MAX_RATIONS_PER_PACK = 5;
@@ -388,7 +389,9 @@ export function buildSrdCharacter(build) {
     fightingStyle: style?.id || null,
     dragonAncestry: ancestry?.id || null,
     features,
-    spellcasting: build.spellcasting || null,
+    spellcasting: buildSpellcasting({ classId: cls.id, ...(build.spells || {}) }),
+    speciesCantrip: buildSpeciesCantrip(sp.id, build.spells?.speciesCantrip),
+    activeEffects: [],
     vitals: {
       hp: maxHp,
       maxHp,
@@ -419,3 +422,50 @@ export function backgroundKit(backgroundId) {
 export function backgroundGold(backgroundId) {
   return BACKGROUNDS_BY_ID[backgroundId]?.gold || 0;
 }
+
+// ── Spells ───────────────────────────────────────────────────────
+
+/** Pure: same rule from raw scores, for the creator before a character exists. */
+export function preparedLimitFor(classId, finalStats, level = 1) {
+  const sc = CLASSES_BY_ID[classId]?.spellcasting;
+  if (!sc?.prepared) return 0;
+  return Math.max(1, abilityMod(finalStats[sc.ability]) + level);
+}
+
+/** Builds the spellcasting block for a new level-1 character. */
+export function buildSpellcasting({ classId, cantrips = [], known = [], prepared = [], spellbook = [] }) {
+  const cls = CLASSES_BY_ID[classId];
+  const sc = cls?.spellcasting;
+  if (!sc) return null;
+  const opts = CLASS_SPELL_LISTS[sc.list];
+  const pickCantrips = cantrips.filter((id) => opts.cantrips.includes(id)).slice(0, sc.cantrips);
+  const block = {
+    ability: sc.ability,
+    list: sc.list,
+    pact: Boolean(sc.pact),
+    cantrips: pickCantrips,
+    alwaysPrepared: (sc.alwaysPrepared || []).slice(),
+    slots: { max: sc.slots.slice(), used: sc.slots.map(() => 0) },
+    known: [],
+    prepared: [],
+    spellbook: [],
+  };
+  if (sc.known) block.known = known.filter((id) => opts.level1.includes(id)).slice(0, sc.known);
+  if (sc.spellbook) {
+    block.spellbook = spellbook.filter((id) => opts.level1.includes(id)).slice(0, sc.spellbook);
+    block.prepared = prepared.filter((id) => block.spellbook.includes(id));
+  } else if (sc.prepared) {
+    block.prepared = prepared.filter((id) => opts.level1.includes(id) && !block.alwaysPrepared.includes(id));
+  }
+  return block;
+}
+
+/** Species cantrip block (High Elf picks a wizard cantrip; Tiefling gets Thaumaturgy). */
+export function buildSpeciesCantrip(speciesId, pickedId) {
+  const bc = SPECIES_BY_ID[speciesId]?.bonusCantrip;
+  if (!bc) return null;
+  if (bc.fixed) return { id: bc.fixed, ability: bc.ability };
+  const list = CLASS_SPELL_LISTS[bc.list]?.cantrips || [];
+  return list.includes(pickedId) ? { id: pickedId, ability: bc.ability } : null;
+}
+

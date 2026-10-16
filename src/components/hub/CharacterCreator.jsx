@@ -29,6 +29,8 @@ import {
 import { effectiveAc, effectiveSpeed, fmtMod } from '../../engine/diceEngine.js';
 import { isWeaponProficient, isArmorProficient } from '../../engine/characterBuilder.js';
 import { Modal, Spinner, SegmentedControl } from '../common/ui.jsx';
+import { SPELLS_BY_ID, CLASS_SPELL_LISTS } from '../../config/spells.js';
+import { classSpellOptions, validateSpells, preparedLimitFor } from '../../engine/spellEngine.js';
 import PerkTree from '../common/PerkTree.jsx';
 
 const toggleIn = (list, v, max) => (list.includes(v) ? list.filter((x) => x !== v) : list.length < max ? [...list, v] : list);
@@ -74,6 +76,12 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
   const [anyPicks, setAnyPicks] = useState({});
   const [wealth, setWealth] = useState(null);
   const [cart, setCart] = useState({});
+  // Spells
+  const [cantripPicks, setCantripPicks] = useState([]);
+  const [knownPicks, setKnownPicks] = useState([]);
+  const [preparedPicks, setPreparedPicks] = useState([]);
+  const [bookPicks, setBookPicks] = useState([]);
+  const [speciesCantrip, setSpeciesCantrip] = useState('');
   // Perks
   const [perks, setPerks] = useState(initial?.customPerkTree || []);
   const [perkBusy, setPerkBusy] = useState(false);
@@ -140,10 +148,13 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
     backstory,
     portraitUrl,
     customPerkTree: perks,
+    spells: { cantrips: cantripPicks, known: knownPicks, prepared: preparedPicks, spellbook: bookPicks, speciesCantrip },
   };
-  const buildErrors = canRebuild ? validateBuild(build) : [];
+  const spellErrors = canRebuild ? validateSpells({ classId, speciesId, finalStats, cantrips: cantripPicks, known: knownPicks, prepared: preparedPicks, spellbook: bookPicks, speciesCantrip }) : [];
+  const buildErrors = canRebuild ? [...validateBuild(build), ...spellErrors] : [];
+  const needsSpells = Boolean(cls?.spellcasting || sp?.bonusCantrip);
   const preview = useMemo(() => {
-    if (!canRebuild || validateBuild(build).length) return null;
+    if (!canRebuild || validateBuild(build).length || spellErrors.length) return null;
     try {
       return buildSrdCharacter(build);
     } catch {
@@ -151,7 +162,9 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
     }
   }, [JSON.stringify(build)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const STEPS = canRebuild ? ['Concept', terms.species, terms.class, 'Abilities', terms.background, 'Skills', 'Equipment', 'Perk Tree', 'Review'] : ['Concept', 'Perk Tree'];
+  const STEPS = canRebuild
+    ? ['Concept', terms.species, terms.class, 'Abilities', terms.background, 'Skills', 'Equipment', ...(needsSpells ? [terms.spells] : []), 'Perk Tree', 'Review']
+    : ['Concept', 'Perk Tree'];
   const stepKey = STEPS[step];
   const isLast = step === STEPS.length - 1;
 
@@ -171,19 +184,29 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
         return classPicks.length === cls.skillCount && (!cls.expertise || expertise.filter((e) => allSkills.includes(e)).length === cls.expertise);
       case 'Equipment':
         return kitComplete;
+      case terms.spells:
+        return spellErrors.length === 0;
       default:
         return true;
     }
   };
 
+  const resetSpells = () => {
+    setCantripPicks([]);
+    setKnownPicks([]);
+    setPreparedPicks([]);
+    setBookPicks([]);
+  };
   const pickSpecies = (id) => {
     setSpeciesId(id);
+    setSpeciesCantrip('');
     setFlexible([]);
     setSpeciesSkills([]);
     setLanguages([]);
   };
   const pickClass = (id) => {
     setClassId(id);
+    resetSpells();
     setClassSkills([]);
     setExpertise([]);
     setKitChoices({});
@@ -434,7 +457,7 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
                   </div>
                 </div>
               )}
-              {cls.spellcasting && <p className="text-xs text-muted">{terms.spells} are chosen in a later update; the class’s casting features are recorded on your sheet.</p>}
+              {cls.spellcasting && <p className="text-xs text-muted">You choose your {terms.spells.toLowerCase()} after picking equipment.</p>}
             </div>
           )}
         </div>
@@ -557,6 +580,27 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
           cart={cart}
           setCart={setCart}
           spent={spent}
+        />
+      )}
+
+      {stepKey === terms.spells && needsSpells && (
+        <SpellStep
+          cls={cls}
+          sp={sp}
+          genre={genre}
+          terms={terms}
+          finalStats={finalStats}
+          speciesLabel={speciesName(speciesId, genre)}
+          cantripPicks={cantripPicks}
+          setCantripPicks={setCantripPicks}
+          knownPicks={knownPicks}
+          setKnownPicks={setKnownPicks}
+          preparedPicks={preparedPicks}
+          setPreparedPicks={setPreparedPicks}
+          bookPicks={bookPicks}
+          setBookPicks={setBookPicks}
+          speciesCantrip={speciesCantrip}
+          setSpeciesCantrip={setSpeciesCantrip}
         />
       )}
 
@@ -943,9 +987,110 @@ function Review({ preview, errors, genre, skin, terms }) {
               </li>
             ))}
           </ul>
-          {c.classId && CLASSES_BY_ID[c.classId]?.spellcasting && <p className="mt-2 text-xs text-muted">{terms.spells}: casting ability {CLASSES_BY_ID[c.classId].spellcasting.ability.toUpperCase()}.</p>}
+          {(c.spellcasting || c.speciesCantrip) && (
+            <>
+              <div className="label mt-3">{terms.spells}</div>
+              <p className="text-xs">
+                {[c.speciesCantrip?.id, ...(c.spellcasting?.cantrips || []), ...(c.spellcasting?.alwaysPrepared || []), ...(c.spellcasting?.known || []), ...(c.spellcasting?.prepared || [])]
+                  .filter(Boolean)
+                  .map((id) => SPELLS_BY_ID[id]?.name || id)
+                  .join(', ')}
+                {c.spellcasting?.spellbook?.length ? ` · Spellbook: ${c.spellcasting.spellbook.map((id) => SPELLS_BY_ID[id]?.name).join(', ')}` : ''}
+              </p>
+            </>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function spellLine(spell) {
+  const bits = [];
+  if (spell.kind === 'attack') bits.push(`${spell.attackType} attack, ${spell.damage} ${spell.damageType}`);
+  else if (spell.kind === 'save') bits.push(`${spell.save.toUpperCase()} save, ${spell.damage} ${spell.damageType}`);
+  else if (spell.kind === 'auto') bits.push(`auto-hit ${spell.damage}`);
+  else if (spell.kind === 'heal') bits.push(`heal ${spell.heal} + mod`);
+  else if (spell.kind === 'temp_hp') bits.push(`${spell.tempHp} temp HP`);
+  if (spell.concentration) bits.push('concentration');
+  if (spell.ritual) bits.push('ritual');
+  return bits.join(' · ');
+}
+
+function SpellPicker({ label, ids, picked, setPicked, max, exclude = [] }) {
+  return (
+    <div>
+      <div className="label">
+        {label} ({picked.length}/{max})
+      </div>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {ids
+          .filter((id) => !exclude.includes(id))
+          .map((id) => {
+            const spell = SPELLS_BY_ID[id];
+            if (!spell) return null;
+            const on = picked.includes(id);
+            return (
+              <button
+                key={id}
+                className={`rounded-theme border-theme p-2 text-left text-xs transition ${on ? 'border-accent bg-accent/10' : 'border-line/40 hover:border-accent/60'}`}
+                onClick={() => setPicked(max === 1 ? (on ? [] : [id]) : toggleIn(picked, id, max))}
+                aria-pressed={on}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="text-sm">{spell.name}</strong>
+                  {on && <Check className="h-3.5 w-3.5 text-accent" />}
+                </div>
+                {spellLine(spell) && <div className="font-mono text-[10px] text-muted">{spellLine(spell)}</div>}
+                <p className="mt-0.5 text-muted">{spell.desc}</p>
+              </button>
+            );
+          })}
+      </div>
+    </div>
+  );
+}
+
+function SpellStep({ cls, sp, terms, finalStats, speciesLabel, cantripPicks, setCantripPicks, knownPicks, setKnownPicks, preparedPicks, setPreparedPicks, bookPicks, setBookPicks, speciesCantrip, setSpeciesCantrip }) {
+  const sc = cls?.spellcasting;
+  const opts = classSpellOptions(cls?.id);
+  const prepLimit = sc?.prepared ? preparedLimitFor(cls.id, finalStats) : 0;
+  const bc = sp?.bonusCantrip;
+  return (
+    <div className="space-y-5 text-sm">
+      {sc && (
+        <p className="text-xs text-muted">
+          Casting ability: <strong>{sc.ability.toUpperCase()}</strong> · two 1st-level slots{sc.pact ? ' (one pact slot, back on a short rest)' : ''}.
+          {sc.alwaysPrepared?.length ? ` Always prepared: ${sc.alwaysPrepared.map((id) => SPELLS_BY_ID[id]?.name).join(', ')}.` : ''}
+        </p>
+      )}
+      {bc && (
+        <div className="card-inset p-2">
+          {bc.fixed ? (
+            <p className="text-xs">
+              {speciesLabel} {terms.cantrips?.toLowerCase() || 'cantrip'}: <strong>{SPELLS_BY_ID[bc.fixed]?.name}</strong> ({bc.ability.toUpperCase()}).
+            </p>
+          ) : (
+            <SpellPicker
+              label={`${speciesLabel} bonus cantrip (${bc.ability.toUpperCase()})`}
+              ids={CLASS_SPELL_LISTS[bc.list]?.cantrips || []}
+              picked={speciesCantrip ? [speciesCantrip] : []}
+              setPicked={(list) => setSpeciesCantrip(list[list.length - 1] || '')}
+              max={1}
+              exclude={cantripPicks}
+            />
+          )}
+        </div>
+      )}
+      {sc && <SpellPicker label={terms.cantrips || 'Cantrips'} ids={opts.cantrips} picked={cantripPicks} setPicked={setCantripPicks} max={sc.cantrips} exclude={speciesCantrip ? [speciesCantrip] : []} />}
+      {sc?.known && <SpellPicker label={`1st-level ${terms.spells.toLowerCase()} known`} ids={opts.level1} picked={knownPicks} setPicked={setKnownPicks} max={sc.known} />}
+      {sc?.spellbook && (
+        <>
+          <SpellPicker label={`Spellbook (${sc.spellbook} 1st-level ${terms.spells.toLowerCase()})`} ids={opts.level1} picked={bookPicks} setPicked={(list) => { setBookPicks(list); setPreparedPicks(preparedPicks.filter((id) => list.includes(id))); }} max={sc.spellbook} />
+          {bookPicks.length > 0 && <SpellPicker label={`Prepared today (up to ${prepLimit})`} ids={bookPicks} picked={preparedPicks} setPicked={setPreparedPicks} max={prepLimit} />}
+        </>
+      )}
+      {sc?.prepared && !sc.spellbook && <SpellPicker label={`Prepared ${terms.spells.toLowerCase()} (up to ${prepLimit}; change after a long rest)`} ids={opts.level1} picked={preparedPicks} setPicked={setPreparedPicks} max={prepLimit} exclude={sc.alwaysPrepared || []} />}
     </div>
   );
 }

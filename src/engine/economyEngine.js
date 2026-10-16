@@ -214,7 +214,7 @@ export function planRest(kind, character, campaign) {
   if (kind === 'short') {
     const heal = Math.min(maxHp - character.vitals.hp, shortRestHealing(character));
     return {
-      engine: { time_advance_minutes: 60, hp_delta: heal > 0 ? heal : 0 },
+      engine: { time_advance_minutes: 60, hp_delta: heal > 0 ? heal : 0, restore_spell_slots: 'pact' },
       summary: `Short rest (1 hour): spend a hit die for a fixed ${shortRestHealing(character)} HP (d${character.hitDie || 8}/2+1 + CON).`,
       error: null,
     };
@@ -228,6 +228,8 @@ export function planRest(kind, character, campaign) {
     conditions_removed: ['exhausted', 'frightened'],
     heal_companions_full: true,
     remove_item_ids: needsRation && ration ? [ration.id] : [],
+    restore_spell_slots: 'all',
+    clear_active_effects: true,
   };
   if (buffs.tempHp) engine.set_temp_hp = buffs.tempHp;
   if (buffs.initiativeBuff) engine.buffs = { initiativeBuff: buffs.initiativeBuff };

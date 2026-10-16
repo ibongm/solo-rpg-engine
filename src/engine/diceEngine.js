@@ -7,6 +7,7 @@ import { ABILITIES, ABILITY_LABELS, SKILLS, SKILL_KEYS, skillLabel } from '../co
 import { abilityMod, proficiencyBonus, perkModifier } from './progression.js';
 import { rollDie, getDefaultRng } from './rng.js';
 import { isSrdCharacter, isWeaponProficient, isArmorProficient } from './characterBuilder.js';
+import { SPELLS_BY_ID } from '../config/spells.js';
 
 // ── Dice expressions ─────────────────────────────────────────────
 
@@ -107,9 +108,11 @@ export function effectiveAc(character) {
   } else {
     base = character?.vitals?.ac ?? 10;
   }
+  if (!body && hasEffect(character, 'mage_armor')) base = Math.max(base, 13 + dex);
   const shieldAc = shield ? Number(shield.baseAc) || 2 : 0;
   const defense = character?.fightingStyle === 'defense' && body ? 1 : 0;
-  return base + shieldAc + defense + itemModifier(character, 'ac') + perkModifier(character, 'ac');
+  const faith = hasEffect(character, 'shield_of_faith') ? 2 : 0;
+  return base + shieldAc + defense + faith + itemModifier(character, 'ac') + perkModifier(character, 'ac');
 }
 
 /** Armor the character is not proficient with — imposes disadvantage on Str/Dex rolls and attacks. */
@@ -124,7 +127,27 @@ export function effectiveMaxHp(character) {
 export function effectiveSpeed(character) {
   const body = equippedBodyArmor(character);
   const tooHeavy = body?.strReq && effectiveAbility(character, 'str') < body.strReq && !character?.ignoresHeavyArmorSpeed ? -10 : 0;
-  return Math.max(0, (character?.vitals?.speed ?? 30) + perkModifier(character, 'speed') + tooHeavy);
+  const stride = hasEffect(character, 'longstrider') ? 10 : 0;
+  return Math.max(0, (character?.vitals?.speed ?? 30) + perkModifier(character, 'speed') + tooHeavy + stride);
+}
+
+/** Engine-tracked spell effects (Mage Armor, Shield of Faith, Longstrider, Bless …). */
+export function hasEffect(character, id) {
+  return (character?.activeEffects || []).some((e) => e.id === id);
+}
+
+/** Which ability casts a spell for this character (species cantrips use their own ability). */
+export function spellAbilityFor(character, spellId) {
+  if (spellId && character?.speciesCantrip?.id === spellId) return character.speciesCantrip.ability;
+  return character?.spellcasting?.ability || character?.speciesCantrip?.ability || null;
+}
+
+/** Cantrip damage grows at levels 5, 11 and 17: '1d10' → '2d10' → '3d10' → '4d10'. */
+export function scaleCantripDice(expr, level) {
+  const m = /^(\d+)d(\d+)(.*)$/.exec(String(expr || ''));
+  if (!m) return expr;
+  const mult = level >= 17 ? 4 : level >= 11 ? 3 : level >= 5 ? 2 : 1;
+  return `${Number(m[1]) * mult}d${m[2]}${m[3]}`;
 }
 
 export function equippedWeapon(character) {
@@ -212,6 +235,11 @@ const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
 export function normalizeSkillOrStat(raw, skin) {
   const s = norm(raw);
   if (!s) return { kind: 'ability', key: 'wis' };
+  // "spell_attack:fire_bolt" (requested by the storyteller for a cast the engine set up)
+  if (s.startsWith('spell_attack') || s.startsWith('spellattack')) {
+    const id = s.split(':')[1] || null;
+    return { kind: 'attack', key: 'spell', spellId: id && SPELLS_BY_ID[id] ? id : null };
+  }
   if (s.startsWith('attack') || s.includes('attack_roll') || s === 'to_hit') {
     const ranged = s.includes('ranged');
     const melee = s.includes('melee');
@@ -261,8 +289,9 @@ export function normalizeSkillOrStat(raw, skin) {
  * @param {object} [p.weapon]            explicit weapon for attacks (defaults to equipped)
  * @param {Array<{label:string,value:number}>} [p.extraModifiers]
  */
-export function buildCheck({ character, skillOrStat, dc = null, advantage = 'normal', weather = null, skin = null, weapon = null, extraModifiers = [], reason = '' }) {
+export function buildCheck({ character, skillOrStat, dc = null, advantage = 'normal', weather = null, skin = null, weapon = null, spell = null, extraModifiers = [], reason = '' }) {
   const desc = typeof skillOrStat === 'object' && skillOrStat ? skillOrStat : normalizeSkillOrStat(skillOrStat, skin);
+  const spellDef = spell || (desc.key === 'spell' && desc.spellId ? SPELLS_BY_ID[desc.spellId] : null);
   const level = character?.level || 1;
   const prof = proficiencyBonus(level);
   const breakdown = [];
@@ -276,7 +305,14 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
   const srd = isSrdCharacter(character);
   let expert = false;
   const advNotes = [];
-  if (desc.kind === 'attack') {
+  if (desc.kind === 'attack' && (desc.key === 'spell' || spellDef)) {
+    // Spell attack: spellcasting ability + proficiency, no weapon.
+    isAttack = true;
+    ability = spellAbilityFor(character, spellDef?.id) || 'int';
+    proficient = true;
+    isRanged = spellDef ? spellDef.attackType !== 'melee' : true;
+    label = spellDef ? `Spell Attack — ${spellDef.name}` : 'Spell Attack';
+  } else if (desc.kind === 'attack') {
     isAttack = true;
     usedWeapon = weapon || equippedWeapon(character);
     const tags = usedWeapon?.craftingTags || [];
@@ -324,7 +360,9 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
   if (weatherMod) breakdown.push({ label: `Weather (${weather.type})`, value: weatherMod });
 
   let itemMod = 0;
-  if (isAttack) {
+  if (isAttack && (desc.key === 'spell' || spellDef)) {
+    // Spell attacks ignore weapon bonuses.
+  } else if (isAttack) {
     itemMod += usedWeapon?.statModifiers?.attack || 0;
     // Non-weapon equipped gear with a generic attack bonus
     for (const it of equippedItems(character)) {
@@ -338,7 +376,7 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
   if (itemMod) breakdown.push({ label: 'Items', value: itemMod });
 
   let perkMod = 0;
-  if (isAttack) perkMod += perkModifier(character, 'attack');
+  if (isAttack && !spellDef && desc.key !== 'spell') perkMod += perkModifier(character, 'attack');
   else {
     if (desc.kind === 'skill') perkMod += perkModifier(character, desc.key);
     if (desc.kind === 'initiative') perkMod += perkModifier(character, 'initiative');
@@ -405,6 +443,7 @@ export function buildCheck({ character, skillOrStat, dc = null, advantage = 'nor
           ranged: isRanged,
         }
       : null,
+    spell: spellDef ? { id: spellDef.id, name: spellDef.name, damageDice: spellDef.damage ? (spellDef.scales ? scaleCantripDice(spellDef.damage, level) : spellDef.damage) : null, damageType: spellDef.damageType || null } : null,
     reason,
   };
 }
@@ -458,6 +497,7 @@ export function rollCheck(check, rng = getDefaultRng()) {
 
 /** Damage expression for an attack check's weapon (unarmed = 1 + STR mod). */
 export function damageExpression(check, character) {
+  if (check.spell) return { expr: check.spell.damageDice || '0', flatBonus: 0 };
   const abilityModValue = abilityMod(effectiveAbility(character, check.ability));
   const perkDmg = perkModifier(character, 'damage');
   if (!check.weapon) {
