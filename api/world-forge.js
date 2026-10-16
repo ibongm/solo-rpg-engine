@@ -1,12 +1,12 @@
 /**
  * POST /api/world-forge
  *  mode "seed":     AI World Seeder (gemini-4-argon) — region, 3 factions, 5 rumors, starting node,
- *                   nearby nodes, main quest, opening scene.
+ *                   nearby nodes, main quest (unless quests are off), opening scene.
  *  mode "perkTree": Custom 5-tier Perk Tree generator for a character concept.
  */
 import { withHandler, HttpError, isMock, requireString } from './_lib/http.js';
 import { generateStructured } from './_lib/vertex.js';
-import { WORLD_SEED_SCHEMA, PERK_TREE_SCHEMA } from './_lib/schemas.js';
+import { worldSeedSchema, PERK_TREE_SCHEMA } from './_lib/schemas.js';
 import { WORLD_FORGE_RULES, PERK_TREE_RULES, renderWorldForgeRequest, renderPerkTreeRequest } from './_lib/prompts.js';
 import { mockWorldSeed, mockPerkTree, MOCK_USAGE } from './_lib/mock.js';
 import { HEAVY_MODEL, DEFAULT_MODEL, isValidModel } from '../src/config/models.js';
@@ -22,7 +22,7 @@ export default withHandler(async ({ body }) => {
       modelId: model,
       systemInstruction: WORLD_FORGE_RULES,
       dynamicText: renderWorldForgeRequest(body),
-      schema: WORLD_SEED_SCHEMA,
+      schema: worldSeedSchema({ questsEnabled: body.questsEnabled !== false }),
       temperature: 1.0,
       maxOutputTokens: 12000,
     });

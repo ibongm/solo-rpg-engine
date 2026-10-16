@@ -92,7 +92,8 @@ export function mockDmTurn(ctx, action) {
           combat_state: { in_combat: false, round: 0, enemies: [] },
           guided_choices: choices(false),
           state_updates: emptyUpdates({
-            xp_delta: 100,
+            xp_delta: 0,
+            milestone: { reached: true, reason: 'You cleared the brigands from the road.' },
             currency_delta: 12,
             time_advance_minutes: 5,
             loot_gained: [{ name: 'Brigand’s Notched Blade', type: 'weapon', damageDice: '1d6', statModifiers: { attack: 0 }, craftingTags: ['melee'], description: 'Crude but sharp.', value: 4 }],
@@ -127,7 +128,7 @@ export function mockDmTurn(ctx, action) {
       state_updates: r.success
         ? emptyUpdates({
             currency_delta: 8,
-            xp_delta: 25,
+            xp_delta: 0,
             time_advance_minutes: 20,
             new_map_node: { id: 'mock_watchtower', label: 'Ruined Watchtower', type: 'landmark', description: 'A crumbling tower on a windswept hill.', travelMinutes: 90, rumors: ['They say a signal fire was lit there last week.'] },
             codex_upserts: [{ id: 'mock_watchtower', type: 'location', name: 'Ruined Watchtower', summary: 'An old watchtower east of the crossroads, marked on a scrap of map.', tags: ['mock_watchtower', 'watchtower', 'map'], attitude: null }],
@@ -221,7 +222,7 @@ export function mockWorldSeed(body) {
       { id: 'mock_ferry', label: 'Greywater Ferry', type: 'landmark', description: 'An abandoned river crossing.', travel_minutes: 120 },
       { id: 'mock_caves', label: 'Weeping Caves', type: 'dungeon', description: 'Limestone caves that drip constantly.', travel_minutes: 240 },
     ],
-    main_quest: { id: 'mock_main', title: 'The Missing Ferryman', description: 'Find out what happened to the Greywater ferryman before the trade caravan arrives.', deadline_days: 5, rewards: ['Waystone Warden favor'] },
+    main_quest: body.questsEnabled === false ? undefined : { id: 'mock_main', title: 'The Missing Ferryman', description: 'Find out what happened to the Greywater ferryman before the trade caravan arrives.', deadline_days: 5, rewards: ['Waystone Warden favor'] },
     opening_narrative: `Rain hammers the shingles of the Lightning Oak inn as you shake the road from your ${genre === 'scifi' ? 'environment suit' : 'cloak'}. The common room falls quiet when you enter — a hooded stranger watches from the corner, and a notice nailed to the bar offers a reward for news of the missing ferryman.\n\nThe innkeeper slides a mug toward you. "Caravan arrives in five days," he mutters. "Without the ferry, it's ruin for all of us."`,
     scene_visual_prompt: 'A rain-lashed frontier inn interior lit by a roaring hearth, a hooded stranger in the corner, a wanted notice on the bar, moody painterly lighting',
     guided_choices: choices(false),

@@ -35,10 +35,10 @@ A deterministic JavaScript rules engine on the player's device is the Rules Lawy
 2. When the action kind is "roll_result", the engine has already rolled. Narrate the outcome that the provided result dictates (success/failure, margin, criticals). Never contradict it. A natural 20 is a spectacular success; a natural 1 is a memorable failure.
 3. Attacks: for a player attack, request skill_or_stat "attack" with dc = the target's true AC. After an attack roll_result that hits, the engine reports the damage it rolled; use that number to move the enemy's health_tier (Healthy → Injured → Bloodied → Critical → Defeated) plausibly for that enemy's toughness.
 4. Enemy AC and traits stay hidden (inspected=false, revealed_ac=null, revealed_traits=[]) until the player succeeds on an Inspect/Scan check; then set inspected=true and reveal the true AC and 1–3 traits. Keep enemy ids stable across turns.
-5. state_updates are PROPOSALS the engine will clamp: hp_delta (damage negative, healing positive), currency_delta, xp_delta (award XP for overcoming challenges, 25–300 typical at low level), time_advance_minutes (realistic: conversation 5–15, search 10–30, travel per map edges, short rest 60, long rest 480).
+5. state_updates are PROPOSALS the engine will clamp: hp_delta (damage negative, healing positive), currency_delta, time_advance_minutes (realistic: conversation 5–15, search 10–30, travel per map edges, short rest 60, long rest 480).
 6. Companions are recruited ONLY organically: set companion_updates[].isRecruited = true only when the story makes the NPC genuinely join. Adjust loyalty with loyalty_delta (−20..+20) based on how the player treats them.
 7. Use codex_upserts for every newly met named NPC, location, or faction fact worth remembering. Reuse ids to update entries. Tags must include relevant node ids and lowercase names.
-8. Use quest_updates to add/advance quests or bounties; deadlines use absolute in-game day and hour. Use rumors_learned for new rumors the player hears. Use conditions_added / conditions_removed for 5e conditions (poisoned, frightened, exhausted, blinded, prone, inspired, hidden).
+8. Experience is engine-owned: always set xp_delta to 0 — the engine awards XP itself. Quests follow the "Campaign settings" line: when quests are ON, use quest_updates to add/advance quests or bounties (deadlines use absolute in-game day and hour); when quests are OFF, never emit quest_updates, never frame goals as formal quests or bounties, and let the player set their own direction in an open sandbox. In MILESTONE mode, set state_updates.milestone = {reached: true, reason} only at a genuine major turning point (a significant foe defeated, a story arc resolved, a major ordeal survived, a key destination reached) and only once the cooldown shown has passed; otherwise omit it or set reached=false. Use rumors_learned for new rumors the player hears. Use conditions_added / conditions_removed for 5e conditions (poisoned, frightened, exhausted, blinded, prone, inspired, hidden).
 9. Introduce at most one new_map_node per turn, only when the player discovers or learns of a new place.
 10. combat_state.in_combat must be true while hostilities continue; list every active enemy with distance (Melee/Near/Far). Set in_combat=false and enemies=[] when combat ends.
 11. guided_choices: exactly 3 distinct, actionable options with a stance, an optional default_skill and an honest estimated_dc.
@@ -48,7 +48,7 @@ A deterministic JavaScript rules engine on the player's device is the Rules Lawy
 15. scene_visual_prompt: a concrete, cinematic art prompt for the current scene in the campaign's genre aesthetic (no text, no UI, no character names).`;
 
 export const WORLD_FORGE_RULES = `You are the World Seeder for a single-player tabletop RPG. Build a compact, playable starting region from the player's prompt.
-Produce: an evocative campaign title; a region (name + 1 paragraph); exactly 3 rival factions with distinct agendas (stable snake_case ids, starting reputation −100..100 relative to the protagonist, heat 0..100); exactly 5 local rumors (some true, some false — do not label them); a starting node; 2–3 nearby nodes with realistic travel_minutes; a main quest (deadline_days null unless urgency is central); an opening scene in second person that ends on a decision point; 3 guided choices; codex entries for named NPCs/places/factions introduced; up to 5 lore pins (world laws); and a start season.
+Produce: an evocative campaign title; a region (name + 1 paragraph); exactly 3 rival factions with distinct agendas (stable snake_case ids, starting reputation −100..100 relative to the protagonist, heat 0..100); exactly 5 local rumors (some true, some false — do not label them); a starting node; 2–3 nearby nodes with realistic travel_minutes; a main quest only when the request says quests are ON (deadline_days null unless urgency is central) — omit main_quest entirely when quests are OFF; an opening scene in second person that ends on a decision point; 3 guided choices; codex entries for named NPCs/places/factions introduced; up to 5 lore pins (world laws); and a start season.
 Honor the genre, the narrative tone and the rules strictness. Incorporate any imported lore faithfully. Never roll dice or state outcomes of uncertain actions.`;
 
 export const PERK_TREE_RULES = `You design a custom 5-tier Perk Tree for a tabletop RPG character that runs on D&D 5e math under the hood.
@@ -110,6 +110,13 @@ export function renderDynamic(ctx, action) {
   const d = ctx?.dynamic || {};
   const lines = [];
   lines.push('# CURRENT STATE (dynamic)');
+  if (d.settings) {
+    const st = d.settings;
+    const xp = st.xpMode === 'milestone'
+      ? `MILESTONE levelling (level ${st.level}; ${st.turnsSinceMilestone} turns since the last milestone, cooldown ${st.milestoneCooldown})`
+      : 'DEEDS (engine awards XP automatically)';
+    lines.push(`Campaign settings: quests ${st.questsEnabled ? 'ON' : 'OFF'}; experience ${xp}.`);
+  }
   if (d.clock) lines.push(`Time: Day ${d.clock.day}, ${String(d.clock.hour).padStart(2, '0')}:${String(d.clock.minute).padStart(2, '0')}, ${d.clock.season}.`);
   if (d.weather) lines.push(`Weather: ${d.weather.type} — ${d.weather.mechanicalEffect}`);
   if (d.location) {
@@ -195,6 +202,11 @@ export function renderWorldForgeRequest(body) {
   if (body.character) {
     lines.push(`Protagonist: ${body.character.name}, level ${body.character.level} ${body.character.classOrArchetype}. ${clip(body.character.backstory, 800)}`);
   }
+  lines.push(
+    body.questsEnabled === false
+      ? 'Quests: OFF. Do NOT create a main quest, bounty or imposed objective. Make the opening an open sandbox: hooks, tensions and places to explore, with the player choosing their own direction.'
+      : 'Quests: ON. Include a main quest.',
+  );
   lines.push(`Player's prompt: ${clip(body.prompt, 3000)}`);
   if (body.importedLore?.length) {
     lines.push('Imported lore (must be honored):');

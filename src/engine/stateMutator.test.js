@@ -52,12 +52,52 @@ describe('computeTurnState', () => {
     expect(s.died).toBe(false);
   });
 
-  it('never lowers XP and levels up', () => {
+  it('ignores storyteller XP; engine XP never lowers and levels up', () => {
     const { character, campaign } = setup();
-    expect(computeTurnState({ campaign, character, ai: ai({ xp_delta: -50 }) }).character.xp).toBe(0);
-    const r = computeTurnState({ campaign, character, ai: ai({ xp_delta: 300 }) });
+    expect(computeTurnState({ campaign, character, ai: ai({ xp_delta: 5000 }) }).character.xp).toBe(0);
+    expect(computeTurnState({ campaign, character, ai: null, engine: { xp_delta: -50 } }).character.xp).toBe(0);
+    const r = computeTurnState({ campaign, character, ai: null, engine: { xp_delta: 300 } });
     expect(r.character.level).toBe(2);
     expect(r.events.some((e) => e.type === 'level_up')).toBe(true);
+  });
+
+  it('awards Deeds XP for a passed check and explains why', () => {
+    const { character, campaign } = setup();
+    const roll = { kind: 'skill', label: 'Stealth', dc: 12, success: true, critical: false };
+    const r = computeTurnState({ campaign, character, ai: ai(), roll });
+    expect(r.character.xp).toBe(20);
+    expect(r.events.find((e) => e.type === 'xp').text).toContain('passed Stealth (DC 12)');
+  });
+
+  it('ignores quest updates when quests are switched off', () => {
+    const { character, campaign } = setup();
+    const off = { ...campaign, meta: { ...campaign.meta, questsEnabled: false }, quests: [] };
+    const r = computeTurnState({ campaign: off, character, ai: ai({ quest_updates: [{ id: 'q1', title: 'Fetch', status: 'active' }] }) });
+    expect(r.campaign.quests).toEqual([]);
+    expect(r.events.some((e) => e.type === 'quest_new')).toBe(false);
+  });
+
+  it('quest-less campaigns start with no quest and no objective', () => {
+    const character = { ...createCharacter({ name: 'Mara', classOrArchetype: 'Fighter', stats }), id: 'c1' };
+    const { campaign } = createCampaignFromSeed({ seed: mockWorldSeed({}), character, characterId: 'c1', genre: 'fantasy', skin: buildSkin('fantasy'), seedKey: 'k', questsEnabled: false, xpMode: 'milestone' });
+    expect(campaign.quests).toEqual([]);
+    expect(campaign.sessionRecap.immediateObjective).toBe('');
+    expect(campaign.meta.questsEnabled).toBe(false);
+    expect(campaign.meta.xpMode).toBe('milestone');
+  });
+
+  it('milestone mode levels up only on an accepted proposal after the cooldown', () => {
+    const { character, campaign } = setup();
+    const ms = { ...campaign, meta: { ...campaign.meta, xpMode: 'milestone' }, turnCount: 2, progress: { lastMilestoneTurn: 0, milestones: [] } };
+    const roll = { kind: 'skill', label: 'Stealth', dc: 12, success: true };
+    const early = computeTurnState({ campaign: ms, character, ai: ai({ milestone: { reached: true, reason: 'Beat the boss' } }), roll });
+    expect(early.character.level).toBe(1);
+    expect(early.character.xp).toBe(0);
+    const later = { ...ms, turnCount: 8 };
+    const r = computeTurnState({ campaign: later, character, ai: ai({ milestone: { reached: true, reason: 'Beat the boss' } }) });
+    expect(r.character.level).toBe(2);
+    expect(r.campaign.progress.lastMilestoneTurn).toBe(9);
+    expect(r.events.some((e) => e.type === 'milestone')).toBe(true);
   });
 
   it('advances the clock and expires timed quests into pending events', () => {

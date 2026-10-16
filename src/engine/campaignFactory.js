@@ -5,6 +5,7 @@
 import { DEFAULT_MODEL } from '../config/models.js';
 import { rollWeather } from './clockWeatherEngine.js';
 import { uid } from './rng.js';
+import { XP_MODES } from './deeds.js';
 
 const NODE_TYPES = ['town', 'dungeon', 'camp', 'safehouse', 'landmark'];
 
@@ -66,6 +67,8 @@ export function createCampaignFromSeed({
   imageMode = 'manual',
   importedLore = [],
   seedKey = uid('seed'),
+  questsEnabled = true,
+  xpMode = 'deeds',
 }) {
   const now = Date.now();
   const start = seed.starting_node || {};
@@ -115,7 +118,7 @@ export function createCampaignFromSeed({
   const clock = { day: 1, hour: 8, minute: 0, season: startSeason };
 
   const quests = [];
-  if (seed.main_quest) {
+  if (questsEnabled && seed.main_quest) {
     const days = seed.main_quest.deadline_days;
     quests.push({
       id: safeId(seed.main_quest.id || seed.main_quest.title, 'quest'),
@@ -145,6 +148,8 @@ export function createCampaignFromSeed({
       lastPlayedAt: now,
       createdAt: now,
       themeOverride: null,
+      questsEnabled: Boolean(questsEnabled),
+      xpMode: XP_MODES.includes(xpMode) ? xpMode : 'deeds',
     },
     telemetry: { totalInputTokens: 0, totalOutputTokens: 0, cachedTokens: 0, totalCostUSD: 0 },
     worldState: {
@@ -182,6 +187,7 @@ export function createCampaignFromSeed({
     lastTurnId: null,
     lastTurnEditable: false,
     cacheRef: null,
+    progress: { lastMilestoneTurn: 0, milestones: [] },
   };
 
   const openingTurn = {

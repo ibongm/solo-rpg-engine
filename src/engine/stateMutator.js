@@ -10,6 +10,7 @@ import { advanceWorld } from './clockWeatherEngine.js';
 import { syncCombat, applyHpChange, emptyCombat } from './combatEngine.js';
 import { placeNodeNear, connect, safeId, normalizeCodexEntry } from './campaignFactory.js';
 import { uid, getDefaultRng } from './rng.js';
+import { xpMode, questsEnabled, listDeeds, scoreDeeds, resolveMilestone } from './deeds.js';
 import { ABILITIES, SKILL_KEYS } from '../config/genreSkins.js';
 
 export const MAX_HP_DELTA_FACTOR = 2;
@@ -36,6 +37,7 @@ export const MUTABLE_CAMPAIGN_FIELDS = [
   'lastTurnId',
   'turnCount',
   'sessionRecap',
+  'progress',
 ];
 
 const ITEM_TYPES = ['weapon', 'armor', 'consumable', 'material', 'key'];
@@ -159,9 +161,14 @@ function upsertCompanion(roster, u, events) {
  * @param {object} [p.engine]   engine-originated effects applied first:
  *   { time_advance_minutes, hp_delta, currency_delta, xp_delta, conditions_added, conditions_removed,
  *     travelToNodeId, vitals (replacement vitals from a death save), consumePendingEvents }
+ * @param {object|null} [p.roll]          the resolved roll record for this turn (feeds Deeds XP)
+ * @param {Array<string>} [p.knownCodexIds] Codex ids that already exist (feeds Deeds XP)
  * @returns {{ campaign, character, codexUpserts, events, died, downed }}
+ *
+ * XP is engine-owned: the storyteller's xp_delta is ignored. In 'deeds' mode XP comes from
+ * deeds.js; in 'milestone' mode only an accepted milestone proposal levels the character.
  */
-export function computeTurnState({ campaign, character, ai = null, engine = {}, rng = getDefaultRng() }) {
+export function computeTurnState({ campaign, character, ai = null, engine = {}, roll = null, knownCodexIds = [], rng = getDefaultRng() }) {
   const camp = clone(campaign);
   let ch = clone(character);
   const events = [];
@@ -263,15 +270,6 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
     else events.push({ type: 'currency', text: `${applied > 0 ? '+' : ''}${applied} ${ch.currency.label}`, tone: applied > 0 ? 'success' : 'info' });
   }
 
-  // ── XP ──
-  const xpDelta = clamp(int(engine.xp_delta) + int(su.xp_delta), 0, MAX_XP_GAIN);
-  if (xpDelta) {
-    const r = applyXp(ch, xpDelta);
-    ch = r.character;
-    events.push({ type: 'xp', text: `+${xpDelta} XP`, tone: 'success' });
-    if (r.levelsGained > 0) events.push({ type: 'level_up', text: `Level up! You are now level ${ch.level}. (+1 perk point)`, tone: 'success' });
-  }
-
   // ── Factions ──
   for (const fd of su.faction_deltas || []) {
     const idx = camp.factions.findIndex((f) => f.id === fd.faction_id || f.name.toLowerCase() === String(fd.faction_id || '').toLowerCase());
@@ -350,8 +348,10 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
     events.push({ type: 'rumor', text: `Rumor heard: ${rumors[0]}${rumors.length > 1 ? ` (+${rumors.length - 1} more)` : ''}`, tone: 'info' });
   }
 
-  // ── Quests ──
-  for (const q of su.quest_updates || []) camp.quests = upsertQuest(camp.quests, q, events, camp.worldState.clock);
+  // ── Quests (ignored entirely when the campaign has quests switched off) ──
+  if (questsEnabled(camp)) {
+    for (const q of su.quest_updates || []) camp.quests = upsertQuest(camp.quests, q, events, camp.worldState.clock);
+  }
 
   // ── Companions (organic recruitment only) ──
   for (const u of su.companion_updates || []) {
@@ -373,6 +373,39 @@ export function computeTurnState({ campaign, character, ai = null, engine = {}, 
     camp.combat = r.combat;
     events.push(...r.events);
     if (r.initiativeRolled && camp.buffs?.initiativeBuff) camp.buffs = { ...camp.buffs, initiativeBuff: 0 };
+  }
+
+  // ── Experience (engine-owned) ──
+  const mode = xpMode(camp);
+  let xpGain = 0;
+  let xpWhy = '';
+  if (mode === 'deeds') {
+    xpGain = clamp(int(engine.xp_delta), 0, MAX_XP_GAIN);
+    const deeds = listDeeds({ before: { campaign, character }, after: { campaign: camp, character: ch }, roll, codexUpserts, knownCodexIds });
+    const earned = scoreDeeds(deeds, ch.level);
+    if (earned) {
+      xpGain = clamp(xpGain + earned, 0, MAX_XP_GAIN);
+      xpWhy = deeds.map((d) => d.text).join(', ');
+    }
+  } else if (mode === 'milestone' && ai) {
+    const turnNo = (campaign.turnCount || 0) + 1;
+    const m = resolveMilestone({ character: ch, proposal: su.milestone, turnCount: turnNo, lastMilestoneTurn: camp.progress?.lastMilestoneTurn || 0 });
+    if (m.granted) {
+      xpGain = m.xp;
+      xpWhy = m.reason;
+      camp.progress = {
+        ...(camp.progress || {}),
+        lastMilestoneTurn: turnNo,
+        milestones: [...(camp.progress?.milestones || []), { turn: turnNo, level: (ch.level || 1) + 1, reason: m.reason }].slice(-30),
+      };
+      events.push({ type: 'milestone', text: `Milestone reached: ${m.reason}`, tone: 'success' });
+    }
+  }
+  if (xpGain) {
+    const r = applyXp(ch, xpGain);
+    ch = r.character;
+    if (mode === 'deeds') events.push({ type: 'xp', text: `+${xpGain} XP${xpWhy ? ` — ${xpWhy}` : ''}`, tone: 'success' });
+    if (r.levelsGained > 0) events.push({ type: 'level_up', text: `Level up! You are now level ${ch.level}. (+1 perk point)`, tone: 'success' });
   }
 
   // ── Narrative bookkeeping ──
@@ -442,7 +475,7 @@ function stripId(doc) {
 export async function commitTurn({ uid: userId, campaign, character, codex = [], turn, ai, engine = {}, usage = null, costUSD = 0, cacheRef, rng }) {
   const { writeBatch, increment, campaignRef, characterRef, turnRef, codexRef, clean } = await fs();
   const { db } = await import('../firebase/config.js');
-  const result = computeTurnState({ campaign, character, ai, engine, rng });
+  const result = computeTurnState({ campaign, character, ai, engine, roll: turn?.roll || null, knownCodexIds: codex.map((c) => c.id), rng });
 
   const priorCodex = {};
   for (const e of result.codexUpserts) {

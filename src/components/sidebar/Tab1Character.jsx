@@ -7,6 +7,7 @@ import { abilityMod, proficiencyBonus, xpForNextLevel, XP_THRESHOLDS, perkPoints
 import { buildCheck, effectiveAbility, fmtMod } from '../../engine/diceEngine.js';
 import { Meter } from '../common/ui.jsx';
 import PerkTree from '../common/PerkTree.jsx';
+import { xpMode, questsEnabled, milestoneCooldown, levelScale, DEED_XP } from '../../engine/deeds.js';
 
 export default function Tab1Character() {
   const character = useGameStore((s) => s.character);
@@ -43,8 +44,7 @@ export default function Tab1Character() {
             );
           })}
         </div>
-        <Meter className="mt-3" label={`XP — level ${character.level}`} value={character.xp - prevXp} max={nextXp ? nextXp - prevXp : 1} showValue={Boolean(nextXp)} colorClass="bg-accent-2" />
-        {nextXp && <p className="mt-0.5 text-right font-mono text-[11px] text-muted">{character.xp} / {nextXp}</p>}
+        <ProgressPanel character={character} campaign={campaign} prevXp={prevXp} nextXp={nextXp} />
       </section>
 
       <section>
@@ -105,6 +105,57 @@ export default function Tab1Character() {
           <p className="whitespace-pre-line text-sm text-muted">{character.backstory}</p>
         </section>
       )}
+    </div>
+  );
+}
+
+function ProgressPanel({ character, campaign, prevXp, nextXp }) {
+  const mode = xpMode(campaign);
+  if (mode === 'milestone') {
+    const since = Math.max(0, (campaign.turnCount || 0) - (campaign.progress?.lastMilestoneTurn || 0));
+    const cooldown = milestoneCooldown(character.level || 1);
+    const last = (campaign.progress?.milestones || []).slice(-1)[0];
+    return (
+      <div className="mt-3 card-inset p-2 text-xs">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold">Level {character.level} · Milestone levelling</span>
+          <span className="font-mono text-muted">{nextXp ? (since >= cooldown ? 'ready' : `${cooldown - since} turns`) : 'max'}</span>
+        </div>
+        <p className="mt-1 text-muted">You level up when the story reaches a major turning point — a significant foe beaten, an arc resolved, an ordeal survived.</p>
+        {last && <p className="mt-1">Last milestone: {last.reason}</p>}
+      </div>
+    );
+  }
+  const scale = levelScale(character.level);
+  const rows = [
+    ['Passed check', `${Math.round(DEED_XP.checkEasy * scale)}–${Math.round(DEED_XP.checkHeroic * scale)} (by DC)`],
+    ['Failed check', Math.round(DEED_XP.checkFailed * scale)],
+    ['Enemy defeated or driven off', Math.round(DEED_XP.enemyOvercome * scale)],
+    ['New location discovered', Math.round(DEED_XP.locationDiscovered * scale)],
+    ['First visit to a location', Math.round(DEED_XP.locationVisited * scale)],
+    ['New codex entry', Math.round(DEED_XP.loreLearned * scale)],
+    ['Faction standing improves', Math.round(DEED_XP.factionStanding * scale)],
+    ['Companion joins you', Math.round(DEED_XP.allyRecruited * scale)],
+    ['Day survived', Math.round(DEED_XP.daySurvived * scale)],
+  ];
+  if (questsEnabled(campaign)) rows.push(['Quest completed', `${Math.round(DEED_XP.questRumor * scale)}–${Math.round(DEED_XP.questMain * scale)}`]);
+  return (
+    <div className="mt-3">
+      <Meter label={`XP — level ${character.level}`} value={character.xp - prevXp} max={nextXp ? nextXp - prevXp : 1} showValue={false} colorClass="bg-accent-2" />
+      {nextXp && <p className="mt-0.5 text-right font-mono text-[11px] text-muted">{character.xp} / {nextXp}</p>}
+      <details className="mt-1 text-xs">
+        <summary className="cursor-pointer text-muted hover:text-ink">How you earn XP (Deeds)</summary>
+        <table className="mt-1 w-full">
+          <tbody>
+            {rows.map(([label, xp]) => (
+              <tr key={label} className="border-b border-line/20 last:border-0">
+                <td className="py-0.5">{label}</td>
+                <td className="py-0.5 text-right font-mono">+{xp}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
     </div>
   );
 }

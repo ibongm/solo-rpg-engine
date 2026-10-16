@@ -1,10 +1,11 @@
-import { Cpu, Image, Palette, Dices, Gauge, Download, Database, ArrowLeft } from 'lucide-react';
+import { Cpu, Image, Palette, Dices, Gauge, Download, Database, ArrowLeft, TrendingUp } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 import { updateSettings } from '../../store/localActions.js';
 import { TEXT_MODELS, IMAGE_MODEL, getTextRate } from '../../config/models.js';
 import { THEMES, themeForGenre } from '../../config/genreSkins.js';
 import { campaignToMarkdown, exportCampaignBundle, downloadText, slugify } from '../../engine/exporters.js';
 import { SegmentedControl, fmtTokens, fmtUSD } from '../common/ui.jsx';
+import { XP_MODE_INFO, xpMode, questsEnabled } from '../../engine/deeds.js';
 
 export default function Tab6Engine() {
   const campaign = useGameStore((s) => s.campaign);
@@ -21,8 +22,42 @@ export default function Tab6Engine() {
   const cache = campaign.cacheRef;
   const cacheLive = cache?.expireTime && Date.parse(cache.expireTime) > Date.now();
 
+  const mode = xpMode(campaign);
+  const quests = questsEnabled(campaign);
+
   return (
     <div className="space-y-5">
+      <section className="space-y-3">
+        <h3 className="section-title flex items-center gap-1.5">
+          <TrendingUp className="h-4 w-4" /> Progression
+        </h3>
+        <div>
+          <div className="label">Quests</div>
+          <SegmentedControl
+            value={quests ? 'on' : 'off'}
+            onChange={(v) => !locked && updateSettings({ 'meta.questsEnabled': v === 'on' })}
+            options={[
+              { value: 'off', label: 'Off (sandbox)' },
+              { value: 'on', label: 'On' },
+            ]}
+          />
+          <p className="mt-1 text-[11px] text-muted">{quests ? 'The storyteller can offer quests and bounties; they appear in the Quests tab.' : 'No quests or bounties. The Quests tab is hidden and you set your own goals.'}</p>
+        </div>
+        <div>
+          <div className="label">Experience</div>
+          <SegmentedControl
+            value={mode}
+            onChange={(v) => {
+              if (locked || v === mode) return;
+              // Starting milestone mode begins a fresh cooldown so a level is not granted on the very next turn.
+              updateSettings(v === 'milestone' ? { 'meta.xpMode': v, 'progress.lastMilestoneTurn': campaign.turnCount || 0 } : { 'meta.xpMode': v });
+            }}
+            options={Object.entries(XP_MODE_INFO).map(([value, m]) => ({ value, label: m.label }))}
+          />
+          <p className="mt-1 text-[11px] text-muted">{XP_MODE_INFO[mode].blurb}</p>
+        </div>
+      </section>
+
       <section>
         <h3 className="section-title mb-2 flex items-center gap-1.5">
           <Cpu className="h-4 w-4" /> Storyteller Model

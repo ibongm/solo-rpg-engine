@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { User, Backpack, Map, ScrollText, BookOpen, Cpu } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
+import { questsEnabled } from '../../engine/deeds.js';
 import Tab1Character from './Tab1Character.jsx';
 import Tab2Inventory from './Tab2Inventory.jsx';
 import Tab3MapFactions from './Tab3MapFactions.jsx';
@@ -18,10 +19,6 @@ export const TABS = [
 ];
 
 /** Quests can be switched off per campaign; the Quests tab is hidden then (other tabs keep their numbers). */
-export function questsEnabled(campaign) {
-  return campaign?.meta?.questsEnabled !== false;
-}
-
 export function visibleTabs(campaign) {
   return TABS.filter((t) => t.id !== 4 || questsEnabled(campaign));
 }

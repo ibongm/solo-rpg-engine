@@ -6,6 +6,7 @@
  * The STATIC block (rules-adjacent, rarely changing) is separated so the server can cache it.
  */
 import { effectiveAc, effectiveMaxHp } from './diceEngine.js';
+import { questsEnabled, xpMode, milestoneCooldown } from './deeds.js';
 
 export const ACTIVE_TURNS_IN_CONTEXT = 14;
 export const MAX_CODEX_CARDS = 8;
@@ -123,7 +124,14 @@ export function buildDmContext({ campaign, character, turns = [], diary = [], co
       equipment: (character.inventory || []).filter((i) => i.equipped).map((i) => i.name),
       inventory: (character.inventory || []).slice(0, 40).map((i) => ({ id: i.id, name: i.name })),
       factions: (campaign.factions || []).map((f) => ({ id: f.id, name: f.name, reputation: f.reputation, heat: f.heat })),
-      quests: (campaign.quests || []).filter((q) => q.status === 'active').map((q) => ({ id: q.id, title: q.title, type: q.type, description: q.description, deadline: q.deadline })),
+      quests: questsEnabled(campaign) ? (campaign.quests || []).filter((q) => q.status === 'active').map((q) => ({ id: q.id, title: q.title, type: q.type, description: q.description, deadline: q.deadline })) : [],
+      settings: {
+        questsEnabled: questsEnabled(campaign),
+        xpMode: xpMode(campaign),
+        level: character.level,
+        turnsSinceMilestone: Math.max(0, (campaign.turnCount || 0) - (campaign.progress?.lastMilestoneTurn || 0)),
+        milestoneCooldown: milestoneCooldown(character.level || 1),
+      },
       companions: (character.companionRoster || []).map((c) => ({ id: c.id, name: c.name, archetype: c.archetype, isRecruited: c.isRecruited, loyalty: c.loyalty, hp: c.hp, maxHp: c.maxHp, personalityNotes: c.personalityNotes })),
       combat: campaign.combat?.inCombat ? campaign.combat : null,
       activeNpc: campaign.activeNpc || null,

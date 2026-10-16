@@ -213,6 +213,15 @@ export const DM_TURN_SCHEMA = {
             },
           },
         },
+        milestone: {
+          type: 'OBJECT',
+          nullable: true,
+          description: 'MILESTONE mode only: propose a level-up at a major story turning point. The engine enforces a cooldown.',
+          properties: {
+            reached: { type: 'BOOLEAN' },
+            reason: S('One short sentence naming the turning point'),
+          },
+        },
         rumors_learned: arr(S()),
         conditions_added: arr(S()),
         conditions_removed: arr(S()),
@@ -341,3 +350,11 @@ export const ARCHIVIST_SCHEMA = {
     },
   },
 };
+
+/** World seed schema for a campaign; main_quest is dropped entirely when quests are switched off. */
+export function worldSeedSchema({ questsEnabled = true } = {}) {
+  if (questsEnabled) return WORLD_SEED_SCHEMA;
+  const properties = { ...WORLD_SEED_SCHEMA.properties };
+  delete properties.main_quest;
+  return { ...WORLD_SEED_SCHEMA, properties, required: WORLD_SEED_SCHEMA.required.filter((k) => k !== 'main_quest') };
+}

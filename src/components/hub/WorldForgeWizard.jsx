@@ -6,6 +6,7 @@ import { createCampaignWithOpening } from '../../firebase/db.js';
 import { GENRES, GENRE_IDS, SKILL_KEYS, SKILLS, buildSkin, THEMES } from '../../config/genreSkins.js';
 import { TEXT_MODELS, HEAVY_MODEL, DEFAULT_MODEL, computeTextCost } from '../../config/models.js';
 import { createCampaignFromSeed } from '../../engine/campaignFactory.js';
+import { XP_MODE_INFO } from '../../engine/deeds.js';
 import { markdownToLoreEntries } from '../../engine/exporters.js';
 import { Modal, Slider, SegmentedControl, Spinner, fmtUSD } from '../common/ui.jsx';
 
@@ -27,6 +28,8 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
   const [imageMode, setImageMode] = useState('manual');
   const [modelPref, setModelPref] = useState(DEFAULT_MODEL);
   const [seedModel, setSeedModel] = useState(HEAVY_MODEL);
+  const [questsOn, setQuestsOn] = useState(false);
+  const [xpMode, setXpMode] = useState('deeds');
   const eligible = characters.filter((c) => c.status !== 'fallen' && !c.activeCampaignId);
   const [charId, setCharId] = useState(eligible[0]?.id || '');
   const [prompt, setPrompt] = useState('');
@@ -76,6 +79,7 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
           strictness,
           currencyLabel,
           prompt,
+          questsEnabled: questsOn,
           importedLore: lore,
           character: character ? { name: character.name, level: character.level, classOrArchetype: character.classOrArchetype, backstory: character.backstory } : null,
         },
@@ -109,6 +113,8 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
         modelPref,
         imageMode,
         importedLore: lore,
+        questsEnabled: questsOn,
+        xpMode,
       });
       campaign.telemetry = {
         totalInputTokens: seedCost.usage?.inputTokens || 0,
@@ -208,6 +214,30 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
             <p className="text-xs text-muted">At strictness 6+ long rests require rations; at 8+ the DM tracks ammo and encumbrance. Death is always permanent.</p>
           </div>
           <div className="space-y-4">
+            <div className="card-inset space-y-3 p-3">
+              <div>
+                <div className="label">Quests</div>
+                <SegmentedControl
+                  value={questsOn ? 'on' : 'off'}
+                  onChange={(v) => {
+                    setQuestsOn(v === 'on');
+                    setSeed(null);
+                  }}
+                  options={[
+                    { value: 'off', label: 'Off (sandbox)' },
+                    { value: 'on', label: 'On' },
+                  ]}
+                />
+                <p className="mt-1 text-xs text-muted">
+                  {questsOn ? 'The world starts with a main quest; the storyteller can hand out quests and bounties.' : 'No quests or imposed objectives — you choose where the story goes. You can switch this later in the Engine tab.'}
+                </p>
+              </div>
+              <div>
+                <div className="label">Experience</div>
+                <SegmentedControl value={xpMode} onChange={setXpMode} options={Object.entries(XP_MODE_INFO).map(([value, m]) => ({ value, label: m.label }))} />
+                <p className="mt-1 text-xs text-muted">{XP_MODE_INFO[xpMode].blurb}</p>
+              </div>
+            </div>
             <div>
               <div className="label">Action input</div>
               <SegmentedControl value={actionMode} onChange={setActionMode} options={[{ value: 'guided', label: 'Guided' }, { value: 'freeform', label: 'Freeform' }, { value: 'hybrid', label: 'Hybrid' }]} />
@@ -364,14 +394,23 @@ function SeedPreview({ seed }) {
             <p className="mt-2 text-xs">Nearby: {seed.nearby_nodes.map((n) => `${n.label} (${n.travel_minutes} min)`).join(', ')}</p>
           )}
         </div>
-        <div className="card-inset p-3 text-sm">
-          <div className="label flex items-center gap-1">
-            <Flag className="h-3 w-3" /> Main Quest
+        {seed.main_quest?.title ? (
+          <div className="card-inset p-3 text-sm">
+            <div className="label flex items-center gap-1">
+              <Flag className="h-3 w-3" /> Main Quest
+            </div>
+            <p className="font-bold">{seed.main_quest.title}</p>
+            <p className="text-xs text-muted">{seed.main_quest.description}</p>
+            {seed.main_quest.deadline_days ? <p className="mt-1 text-xs text-warning">Deadline: {seed.main_quest.deadline_days} days</p> : null}
           </div>
-          <p className="font-bold">{seed.main_quest?.title}</p>
-          <p className="text-xs text-muted">{seed.main_quest?.description}</p>
-          {seed.main_quest?.deadline_days ? <p className="mt-1 text-xs text-warning">Deadline: {seed.main_quest.deadline_days} days</p> : null}
-        </div>
+        ) : (
+          <div className="card-inset p-3 text-sm">
+            <div className="label flex items-center gap-1">
+              <Flag className="h-3 w-3" /> Open Sandbox
+            </div>
+            <p className="text-xs text-muted">No quest — follow the rumors, factions and places that catch your interest.</p>
+          </div>
+        )}
       </div>
       <div className="card-inset p-3 text-sm">
         <div className="label flex items-center gap-1">
