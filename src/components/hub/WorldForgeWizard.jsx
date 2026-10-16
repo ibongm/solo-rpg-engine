@@ -8,8 +8,9 @@ import { TEXT_MODELS, HEAVY_MODEL, DEFAULT_MODEL, computeTextCost } from '../../
 import { createCampaignFromSeed } from '../../engine/campaignFactory.js';
 import { XP_MODE_INFO } from '../../engine/deeds.js';
 import { markdownToLoreEntries } from '../../engine/exporters.js';
-import { Modal, Slider, SegmentedControl, Spinner, fmtUSD } from '../common/ui.jsx';
+import { Modal, Slider, SegmentedControl, Spinner, fmtUSD, Tooltip } from '../common/ui.jsx';
 import XpPaceControls from '../common/XpPaceControls.jsx';
+import { help } from '../../config/helpTooltips.js';
 
 const STEPS = ['Genre & Skin', 'Tone & Rules', 'Hero & Prompt', 'Seed the World'];
 
@@ -213,14 +214,14 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
       {step === 1 && (
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-5">
-            <Slider label="Narrative Tone" value={tone} onChange={setTone} leftLabel="Witty / Slapstick" rightLabel="Grimdark" />
-            <Slider label="Rules Strictness" value={strictness} onChange={setStrictness} leftLabel="Rule of Cool" rightLabel="Hardcore RAW" />
+            <Slider label="Narrative Tone" help={help('forge.tone')} value={tone} onChange={setTone} leftLabel="Witty / Slapstick" rightLabel="Grimdark" />
+            <Slider label="Rules Strictness" help={help('forge.strictness')} value={strictness} onChange={setStrictness} leftLabel="Rule of Cool" rightLabel="Hardcore RAW" />
             <p className="text-xs text-muted">At strictness 6+ long rests require rations; at 8+ the DM tracks ammo and encumbrance. Death is always permanent.</p>
           </div>
           <div className="space-y-4">
             <div className="card-inset space-y-3 p-3">
               <div>
-                <div className="label">Quests</div>
+                <div className="label"><Tooltip help={help('forge.quests')}>Quests</Tooltip></div>
                 <SegmentedControl
                   value={questsOn ? 'on' : 'off'}
                   onChange={(v) => {
@@ -237,7 +238,7 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
                 </p>
               </div>
               <div>
-                <div className="label">Experience</div>
+                <div className="label"><Tooltip help={help('forge.xpMode')}>Experience</Tooltip></div>
                 <SegmentedControl value={xpMode} onChange={setXpMode} options={Object.entries(XP_MODE_INFO).map(([value, m]) => ({ value, label: m.label }))} />
                 <p className="mt-1 text-xs text-muted">{XP_MODE_INFO[xpMode].blurb}</p>
                 <div className="mt-2">
@@ -246,15 +247,15 @@ export default function WorldForgeWizard({ characters, onClose, onCreated }) {
               </div>
             </div>
             <div>
-              <div className="label">Action input</div>
+              <div className="label"><Tooltip help={help('forge.actionMode')}>Action input</Tooltip></div>
               <SegmentedControl value={actionMode} onChange={setActionMode} options={[{ value: 'guided', label: 'Guided' }, { value: 'freeform', label: 'Freeform' }, { value: 'hybrid', label: 'Hybrid' }]} />
             </div>
             <div>
-              <div className="label">Dice</div>
+              <div className="label"><Tooltip help={help('forge.diceMode')}>Dice</Tooltip></div>
               <SegmentedControl value={diceMode} onChange={setDiceMode} options={[{ value: 'digital', label: 'Animated digital d20' }, { value: 'manual', label: 'Physical dice input' }]} />
             </div>
             <div>
-              <div className="label">Scene images</div>
+              <div className="label"><Tooltip help={help('forge.imageMode')}>Scene images</Tooltip></div>
               <SegmentedControl value={imageMode} onChange={setImageMode} options={[{ value: 'off', label: 'Off' }, { value: 'manual', label: 'Manual' }, { value: 'auto', label: 'Auto-Director' }]} />
             </div>
             <div className="grid grid-cols-2 gap-3">

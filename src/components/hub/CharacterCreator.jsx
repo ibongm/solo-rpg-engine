@@ -6,6 +6,7 @@ import { callApi } from '../../firebase/api.js';
 import { ABILITIES, ABILITY_LABELS, GENRES, GENRE_IDS, SKILL_KEYS, SKILLS, buildSkin, skillLabel } from '../../config/genreSkins.js';
 import { DEFAULT_MODEL, computeTextCost } from '../../config/models.js';
 import { SPECIES, CLASSES, BACKGROUNDS, SPECIES_BY_ID, CLASSES_BY_ID, BACKGROUNDS_BY_ID, FIGHTING_STYLES, DRAGON_ANCESTRIES, ITEMS, WEAPONS, ARMOR, GEAR, ANY_LABELS } from '../../config/srd.js';
+import { help } from '../../config/helpTooltips.js';
 import { genreTerms, speciesName, speciesBlurb, className, backgroundName, itemName, itemLabel, languageName, availableLanguages } from '../../config/srdReskins.js';
 import { POINT_BUY_BUDGET, POINT_BUY_COSTS, STANDARD_ARRAY, abilityMod, pointBuyCost, roll4d6DropLowest, normalizePerkTree } from '../../engine/progression.js';
 import {
@@ -28,7 +29,7 @@ import {
 } from '../../engine/characterBuilder.js';
 import { effectiveAc, effectiveSpeed, fmtMod } from '../../engine/diceEngine.js';
 import { isWeaponProficient, isArmorProficient } from '../../engine/characterBuilder.js';
-import { Modal, Spinner, SegmentedControl } from '../common/ui.jsx';
+import { Modal, Spinner, SegmentedControl, Tooltip } from '../common/ui.jsx';
 import { SPELLS_BY_ID, CLASS_SPELL_LISTS } from '../../config/spells.js';
 import { classSpellOptions, validateSpells, preparedLimitFor } from '../../engine/spellEngine.js';
 import PerkTree from '../common/PerkTree.jsx';
@@ -360,18 +361,22 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
               {sp.flexibleBonuses && (
                 <PickRow label={`+1 to two abilities (${flexible.length}/2)`}>
                   {ABILITIES.filter((a) => !sp.flexibleBonuses.exclude.includes(a)).map((a) => (
-                    <Chip key={a} on={flexible.includes(a)} onClick={() => setFlexible(toggleIn(flexible, a, sp.flexibleBonuses.count))}>
-                      {ABILITY_LABELS[a]}
-                    </Chip>
+                    <Tooltip key={a} help={help(`ability.${a}`)} title={ABILITY_LABELS[a]}>
+                      <Chip on={flexible.includes(a)} onClick={() => setFlexible(toggleIn(flexible, a, sp.flexibleBonuses.count))}>
+                        {ABILITY_LABELS[a]}
+                      </Chip>
+                    </Tooltip>
                   ))}
                 </PickRow>
               )}
               {sp.skillChoices && (
                 <PickRow label={`Skill Versatility — pick ${sp.skillChoices} (${speciesSkills.length}/${sp.skillChoices})`}>
                   {SKILL_KEYS.map((k) => (
-                    <Chip key={k} on={speciesSkills.includes(k)} onClick={() => setSpeciesSkills(toggleIn(speciesSkills, k, sp.skillChoices))}>
-                      {skillLabel(k, skin)}
-                    </Chip>
+                    <Tooltip key={k} help={help(`skill.${k}`)} title={skillLabel(k, skin)}>
+                      <Chip on={speciesSkills.includes(k)} onClick={() => setSpeciesSkills(toggleIn(speciesSkills, k, sp.skillChoices))}>
+                        {skillLabel(k, skin)}
+                      </Chip>
+                    </Tooltip>
                   ))}
                 </PickRow>
               )}
@@ -504,9 +509,11 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
               {!bg.skills && (
                 <PickRow label={`Background skills — pick 2 (${backgroundSkills.length}/2)`}>
                   {SKILL_KEYS.map((k) => (
-                    <Chip key={k} on={backgroundSkills.includes(k)} onClick={() => setBackgroundSkills(toggleIn(backgroundSkills, k, 2))}>
-                      {skillLabel(k, skin)}
-                    </Chip>
+                    <Tooltip key={k} help={help(`skill.${k}`)} title={skillLabel(k, skin)}>
+                      <Chip on={backgroundSkills.includes(k)} onClick={() => setBackgroundSkills(toggleIn(backgroundSkills, k, 2))}>
+                        {skillLabel(k, skin)}
+                      </Chip>
+                    </Tooltip>
                   ))}
                 </PickRow>
               )}
@@ -544,17 +551,21 @@ export default function CharacterCreator({ initial = null, onClose, onSaved }) {
             {classSkillList(classId)
               .filter((k) => !granted.includes(k))
               .map((k) => (
-                <Chip key={k} on={classSkills.includes(k)} onClick={() => setClassSkills(toggleIn(classPicks, k, cls.skillCount))}>
-                  {skillLabel(k, skin)} <span className="opacity-60">{SKILLS[k].toUpperCase()}</span>
-                </Chip>
+                <Tooltip key={k} help={help(`skill.${k}`)} title={skillLabel(k, skin)}>
+                  <Chip on={classSkills.includes(k)} onClick={() => setClassSkills(toggleIn(classPicks, k, cls.skillCount))}>
+                    {skillLabel(k, skin)} <span className="opacity-60">{SKILLS[k].toUpperCase()}</span>
+                  </Chip>
+                </Tooltip>
               ))}
           </PickRow>
           {cls.expertise && (
             <PickRow label={`Expertise — double proficiency in ${cls.expertise} (${expertise.filter((e) => allSkills.includes(e)).length}/${cls.expertise})`}>
               {allSkills.map((k) => (
-                <Chip key={k} on={expertise.includes(k)} onClick={() => setExpertise(toggleIn(expertise.filter((e) => allSkills.includes(e)), k, cls.expertise))}>
-                  {skillLabel(k, skin)}
-                </Chip>
+                <Tooltip key={k} help={help(`skill.${k}`)} title={skillLabel(k, skin)}>
+                  <Chip on={expertise.includes(k)} onClick={() => setExpertise(toggleIn(expertise.filter((e) => allSkills.includes(e)), k, cls.expertise))}>
+                    {skillLabel(k, skin)}
+                  </Chip>
+                </Tooltip>
               ))}
             </PickRow>
           )}
@@ -708,7 +719,9 @@ function AbilityStep({ method, setMethod, stats, setStats, pbCost, arrayAssign, 
         {ABILITIES.map((ab) => (
           <div key={ab} className={`card-inset p-2 ${primary.includes(ab) ? 'border-accent/60' : ''}`}>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase">{ABILITY_LABELS[ab]}</span>
+              <Tooltip help={help(`ability.${ab}`)}>
+                <span className="text-xs font-bold uppercase">{ABILITY_LABELS[ab]}</span>
+              </Tooltip>
               <span className="font-heading text-lg font-bold">{finalStats[ab]}</span>
             </div>
             <div className="mb-1 text-[11px] text-muted">
@@ -891,7 +904,13 @@ function ShopSection({ title, items, genre, cart, add, profBadge }) {
                 {itemLabel(it.id, genre)} {profBadge(it.id)}
               </div>
               <div className="font-mono text-[10px] text-muted">
-                {it.kind === 'weapon' ? `${it.damageDice || '—'} ${it.damageType || ''} · ${it.properties.join(', ')}` : it.kind === 'armor' ? `AC ${it.armorCategory === 'shield' ? '+2' : it.baseAc}${it.dexCap === null ? ' + Dex' : it.dexCap ? ` + Dex (max ${it.dexCap})` : ''}` : it.contents || ''}
+                {it.kind === 'weapon' ? (
+                  <>
+                    {`${it.damageDice || '—'} ${it.damageType || ''}`}
+                    {it.properties.length > 0 && ' · '}
+                    <PropertyList properties={it.properties} />
+                  </>
+                ) : it.kind === 'armor' ? `AC ${it.armorCategory === 'shield' ? '+2' : it.baseAc}${it.dexCap === null ? ' + Dex' : it.dexCap ? ` + Dex (max ${it.dexCap})` : ''}` : it.contents || ''}
               </div>
             </div>
             <span className="w-10 text-right font-mono text-xs">{itemPrice(it.id)}</span>
@@ -1093,4 +1112,14 @@ function SpellStep({ cls, sp, terms, finalStats, speciesLabel, cantripPicks, set
       {sc?.prepared && !sc.spellbook && <SpellPicker label={`Prepared ${terms.spells.toLowerCase()} (up to ${prepLimit}; change after a long rest)`} ids={opts.level1} picked={preparedPicks} setPicked={setPreparedPicks} max={prepLimit} exclude={sc.alwaysPrepared || []} />}
     </div>
   );
+}
+
+/** Weapon properties, each with its rules tooltip. */
+function PropertyList({ properties }) {
+  return properties.map((pr, i) => (
+    <span key={pr}>
+      {i > 0 && ', '}
+      <Tooltip help={help(`property.${pr}`)}>{pr}</Tooltip>
+    </span>
+  ));
 }

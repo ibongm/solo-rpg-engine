@@ -5,13 +5,14 @@ import { requestSkillCheck, unlockPerk, castSpell, prepareSpells, learnSpells } 
 import { hasSpellcasting, castableSpells, slotLevels, castSlotOptions, spellAttackBonus, spellSaveDc, spellDamageDice, preparedLimit, preparableSpells, ordinal } from '../../engine/spellEngine.js';
 import { hasPendingSpellChoices, pendingSpellChoices, spellChoiceOptions } from '../../engine/spellProgress.js';
 import { SPELLS_BY_ID } from '../../config/spells.js';
-import { ABILITIES, ABILITY_LABELS, SKILL_KEYS, SKILLS, skillLabel } from '../../config/genreSkins.js';
+import { ABILITIES, ABILITY_LABELS, SKILL_KEYS, skillLabel } from '../../config/genreSkins.js';
 import { languageName } from '../../config/srdReskins.js';
 import { abilityMod, proficiencyBonus, xpForNextLevel, XP_THRESHOLDS, perkPointsAvailable } from '../../engine/progression.js';
 import { buildCheck, effectiveAbility, fmtMod } from '../../engine/diceEngine.js';
-import { Meter } from '../common/ui.jsx';
+import { Meter, Tooltip } from '../common/ui.jsx';
 import PerkTree from '../common/PerkTree.jsx';
 import { xpMode, xpPace, xpFineTune, XP_PACE_INFO, questsEnabled, milestoneCooldown, levelScale, DEED_XP } from '../../engine/deeds.js';
+import { help } from '../../config/helpTooltips.js';
 
 export default function Tab1Character() {
   const character = useGameStore((s) => s.character);
@@ -38,7 +39,9 @@ export default function Tab1Character() {
             const score = effectiveAbility(character, ab);
             return (
               <div key={ab} className="card-inset py-2 text-center" title={ABILITY_LABELS[ab]}>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{ABILITY_LABELS[ab]}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted">
+                  <Tooltip help={help(`ability.${ab}`)}>{ABILITY_LABELS[ab]}</Tooltip>
+                </div>
                 <div className="font-heading text-xl font-bold">{fmtMod(abilityMod(score))}</div>
                 <div className="font-mono text-xs text-muted">
                   {score}
@@ -70,15 +73,20 @@ export default function Tab1Character() {
             const check = buildCheck({ character, skillOrStat: { kind: 'skill', key: k }, weather, skin });
             const prof = character.skillProficiencies.includes(k);
             return (
-              <button
+              <Tooltip
                 key={k}
+                help={help(`skill.${k}`)}
+                title={skillLabel(k, skin)}
+                flavor={`${fmtMod(check.totalModifier)} = ${check.breakdown.map((b) => `${b.label} ${fmtMod(b.value)}`).join(', ')}`}
+                className="w-full min-w-0"
+              >
+              <button
                 disabled={busy || locked}
                 onClick={() => {
                   requestSkillCheck(k, intent || draft.text);
                   setIntent('');
                 }}
-                className="group flex items-center justify-between rounded-theme px-2 py-1 text-left text-sm transition hover:bg-surface-2 disabled:opacity-50"
-                title={`${skillLabel(k, skin)} (${SKILLS[k].toUpperCase()}) — ${check.breakdown.map((b) => `${b.label} ${fmtMod(b.value)}`).join(', ')}`}
+                className="group flex min-w-0 flex-1 items-center justify-between rounded-theme px-2 py-1 text-left text-sm transition hover:bg-surface-2 disabled:opacity-50"
               >
                 <span className="flex items-center gap-1.5">
                   <span className={`h-2 w-2 rounded-full ${prof ? 'bg-accent' : 'border border-line'}`} aria-label={prof ? 'proficient' : 'not proficient'} />
@@ -90,6 +98,7 @@ export default function Tab1Character() {
                   <Dices className="h-3 w-3 opacity-0 transition group-hover:opacity-100" />
                 </span>
               </button>
+              </Tooltip>
             );
           })}
         </div>
@@ -184,7 +193,9 @@ function SheetDetails({ character, weather, skin }) {
         </p>
       )}
       <div>
-        <h3 className="section-title mb-1">Saving Throws</h3>
+        <h3 className="section-title mb-1">
+          <Tooltip help={help('stat.save')}>Saving Throws</Tooltip>
+        </h3>
         <div className="grid grid-cols-3 gap-1 text-xs">
           {ABILITIES.map((ab) => {
             const check = buildCheck({ character, skillOrStat: { kind: 'save', key: ab }, weather, skin });

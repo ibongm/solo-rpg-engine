@@ -1,5 +1,6 @@
 import { XP_PACES, XP_PACE_INFO, XP_FINE_TUNE, estimatedTurnsPerLevel, milestoneCooldown } from '../../engine/deeds.js';
-import { SegmentedControl } from './ui.jsx';
+import { SegmentedControl, Tooltip } from './ui.jsx';
+import { help } from '../../config/helpTooltips.js';
 
 /**
  * Leveling pace + fine-tune, shared by the World Forge (new campaigns) and the Engine tab (mid-campaign).
@@ -11,7 +12,7 @@ export default function XpPaceControls({ mode = 'deeds', pace, fineTune = 1, onC
   return (
     <div className="space-y-2">
       <div>
-        <div className="label">Leveling pace</div>
+        <div className="label"><Tooltip help={help('forge.xpPace')}>Leveling pace</Tooltip></div>
         <SegmentedControl
           value={pace}
           onChange={(v) => !disabled && onChange({ pace: v, fineTune })}
@@ -21,11 +22,12 @@ export default function XpPaceControls({ mode = 'deeds', pace, fineTune = 1, onC
       </div>
       {mode !== 'milestone' && (
         <div className="flex flex-wrap items-center gap-2">
-          <label className="label mb-0" htmlFor={`${idPrefix}-fine`}>
-            XP fine-tune
-          </label>
+          <span className="label mb-0" id={`${idPrefix}-fine-label`}>
+            <Tooltip help={help('forge.xpFineTune')}>XP fine-tune</Tooltip>
+          </span>
           <select
             id={`${idPrefix}-fine`}
+            aria-labelledby={`${idPrefix}-fine-label`}
             className="input w-auto py-1 text-sm"
             value={fineTune}
             disabled={disabled}

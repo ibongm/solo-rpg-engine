@@ -6,8 +6,9 @@ import { commitCampaignSettings } from '../../engine/stateMutator.js';
 import { isDying } from '../../engine/combatEngine.js';
 import { buildCheck, successChance, fmtMod } from '../../engine/diceEngine.js';
 import { STANCES, skillLabel } from '../../config/genreSkins.js';
-import { SegmentedControl, Spinner } from '../common/ui.jsx';
+import { SegmentedControl, Spinner, Tooltip } from '../common/ui.jsx';
 import { useIsDesktop } from '../common/useMediaQuery.js';
+import { help } from '../../config/helpTooltips.js';
 
 const STANCE_ICONS = { Diplomatic: Handshake, Aggressive: Swords, Deceptive: VenetianMask, Investigative: Eye };
 const PILL_STANCES = ['Diplomatic', 'Aggressive', 'Deceptive', 'Investigative'];
@@ -139,16 +140,16 @@ export default function ActionDeck() {
               const Icon = STANCE_ICONS[s];
               const on = draft.stance === s;
               return (
-                <button
-                  key={s}
-                  className={`pill shrink-0 cursor-pointer transition ${on ? 'border-accent bg-accent text-accent-ink' : 'hover:border-accent'}`}
-                  onClick={() => setDraft({ stance: on ? null : s })}
-                  title={`Primes ${skillLabel(STANCES[s], skin)}`}
-                  aria-pressed={on}
-                >
-                  <Icon className="h-3 w-3" /> {s}
-                  {on && <span className="opacity-80">· {skillLabel(STANCES[s], skin)}</span>}
-                </button>
+                <Tooltip key={s} help={help(`stance.${s}`)} className="shrink-0">
+                  <button
+                    className={`pill shrink-0 cursor-pointer transition ${on ? 'border-accent bg-accent text-accent-ink' : 'hover:border-accent'}`}
+                    onClick={() => setDraft({ stance: on ? null : s })}
+                    aria-pressed={on}
+                  >
+                    <Icon className="h-3 w-3" /> {s}
+                    {on && <span className="opacity-80">· {skillLabel(STANCES[s], skin)}</span>}
+                  </button>
+                </Tooltip>
               );
             })}
             <button

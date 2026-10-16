@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `successChance(totalModifier, dc, advantage)` in the dice engine: exact d20 odds including natural 1/20 and advantage/disadvantage.
 * Mobile turn recovery: while a turn generates, the screen stays awake (Screen Wake Lock where supported). If the phone backgrounds the app and the request drops, the turn pauses quietly (`paused_background`) instead of erroring, and resumes automatically when you return or come back online. Genuinely failed, retryable turns get up to 2 automatic retries (`src/engine/turnRecovery.js`, `initTurnRecovery()`).
 * `/api/dm-turn` accepts the client's `turnId` and reuses a generation already finished or in progress for the same player and turn for 5 minutes (`api/_lib/turnCache.js`), so a resumed turn usually costs no second generation. It is per-instance and best-effort.
+* Universal tooltips (`<Tooltip>` in `src/components/common/ui.jsx`): hover or focus on desktop; on touch screens a separate ⓘ button next to the control opens a dismissible popover without triggering the control. Content lives in `src/config/helpTooltips.js` (abilities, skills, saves, AC, speed, HP, hit die, proficiency, weapon properties, conditions, World Forge settings, stances).
+* Tooltips in the character creator (ability and skill picks, ability scores, weapon properties), World Forge settings, leveling pace controls, Engine tab, action stances, Character tab (abilities, skills with their modifier breakdown, saving throws), vitals HUD (AC, speed, HP, conditions) and inventory property tags.
 
 ### Changed
 * `CLAUDE.md`: Converted into a redirect pointer referencing `AGENTS.md`.

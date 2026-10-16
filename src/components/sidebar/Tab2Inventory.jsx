@@ -5,7 +5,8 @@ import { equipItem, dropItem, consumeItem, startCraft } from '../../store/localA
 import { craftingOptions, pickInputs } from '../../engine/economyEngine.js';
 import { fmtMod } from '../../engine/diceEngine.js';
 import { skillLabel } from '../../config/genreSkins.js';
-import { ConfirmButton, EmptyState, SegmentedControl } from '../common/ui.jsx';
+import { ConfirmButton, EmptyState, SegmentedControl, Tooltip } from '../common/ui.jsx';
+import { help } from '../../config/helpTooltips.js';
 
 const TYPE_ICON = { weapon: Sword, armor: Shield, consumable: FlaskConical, material: Gem, key: KeyRound };
 
@@ -34,9 +35,9 @@ export function LootCard({ item, skin, actions = null, compact = false }) {
                 </span>
               ))}
               {item.craftingTags?.map((t) => (
-                <span key={t} className="rounded bg-surface-2 px-1 text-[10px] text-muted">
-                  #{t}
-                </span>
+                <Tooltip key={t} help={help(`property.${t}`)}>
+                  <span className="rounded bg-surface-2 px-1 text-[10px] text-muted">#{t}</span>
+                </Tooltip>
               ))}
             </div>
           )}

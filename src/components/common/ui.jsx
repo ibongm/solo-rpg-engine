@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore.js';
 
@@ -123,11 +124,11 @@ export function EmptyState({ icon, title, children, action }) {
   );
 }
 
-export function Slider({ label, value, onChange, min = 1, max = 10, leftLabel, rightLabel }) {
+export function Slider({ label, help = null, value, onChange, min = 1, max = 10, leftLabel, rightLabel }) {
   return (
     <div>
       <div className="flex justify-between">
-        <span className="label">{label}</span>
+        <span className="label">{help ? <Tooltip help={help}>{label}</Tooltip> : label}</span>
         <span className="font-mono text-sm">{value}</span>
       </div>
       <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-[rgb(var(--c-accent))]" aria-label={label} />
@@ -208,4 +209,96 @@ export function timeAgo(ts) {
   const d = Math.round(h / 24);
   if (d < 30) return `${d}d ago`;
   return new Date(ts).toLocaleDateString();
+}
+
+/**
+ * Tooltip for desktop and touch.
+ *  - Desktop: hovering or focusing the wrapped content opens a small popover.
+ *  - Touch screens (no hover): a separate ⓘ button sits next to the content and toggles the popover,
+ *    so tapping it never triggers the wrapped control. Never place a Tooltip inside a <button>.
+ * Content comes from `help` (an entry of src/config/helpTooltips.js) and/or title/details/badge.
+ */
+export function Tooltip({ help = null, title, details, flavor, badge, children, className = '' }) {
+  const t = { title: title ?? help?.title ?? null, details: details ?? help?.details ?? '', flavor: flavor ?? help?.flavor ?? '', badge: badge ?? help?.badge ?? null };
+  const anchor = useRef(null);
+  const pop = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const id = useRef(`tt-${Math.random().toString(36).slice(2, 9)}`).current;
+
+  useEffect(() => {
+    if (!open || !anchor.current) return undefined;
+    const place = () => {
+      const r = anchor.current.getBoundingClientRect();
+      const width = Math.min(280, window.innerWidth - 16);
+      const left = Math.max(8, Math.min(r.left + r.width / 2 - width / 2, window.innerWidth - width - 8));
+      const below = window.innerHeight - r.bottom > 140 || r.top < 140;
+      setPos({ left, width, top: below ? r.bottom + 6 : null, bottom: below ? null : window.innerHeight - r.top + 6 });
+    };
+    place();
+    const close = (e) => {
+      if (e.type === 'keydown' && e.key !== 'Escape') return;
+      if (e.type === 'pointerdown' && (anchor.current?.contains(e.target) || pop.current?.contains(e.target))) return;
+      setOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', close);
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', close);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open]);
+
+  if (!t.details && !t.title) return children ?? null;
+  const hoverable = () => window.matchMedia?.('(hover: hover)').matches;
+  return (
+    <span
+      ref={anchor}
+      className={`inline-flex items-center gap-0.5 ${className}`}
+      onMouseEnter={() => hoverable() && setOpen(true)}
+      onMouseLeave={() => hoverable() && setOpen(false)}
+      onFocus={() => hoverable() && setOpen(true)}
+      onBlur={() => hoverable() && setOpen(false)}
+      aria-describedby={open ? id : undefined}
+    >
+      {children}
+      <button
+        type="button"
+        className="hidden shrink-0 rounded-full p-0.5 text-muted hover:text-accent [@media(hover:none)]:inline-flex"
+        aria-label={`About ${t.title || 'this'}`}
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={pop}
+            id={id}
+            role="tooltip"
+            className="card fixed z-[70] p-2 text-left text-xs normal-case shadow-theme no-print"
+            style={{ left: pos.left, width: pos.width, top: pos.top ?? undefined, bottom: pos.bottom ?? undefined }}
+          >
+            {(t.title || t.badge) && (
+              <div className="mb-0.5 flex items-center gap-1.5">
+                {t.title && <span className="font-semibold text-ink">{t.title}</span>}
+                {t.badge && <span className="pill py-0 text-[10px]">{t.badge}</span>}
+              </div>
+            )}
+            {t.details && <p className="text-ink">{t.details}</p>}
+            {t.flavor && <p className="mt-0.5 italic text-muted">{t.flavor}</p>}
+          </div>,
+          document.body,
+        )}
+    </span>
+  );
 }

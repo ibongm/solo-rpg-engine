@@ -4,9 +4,10 @@ import { updateSettings } from '../../store/localActions.js';
 import { TEXT_MODELS, IMAGE_MODEL, getTextRate } from '../../config/models.js';
 import { THEMES, themeForGenre } from '../../config/genreSkins.js';
 import { campaignToMarkdown, exportCampaignBundle, downloadText, slugify } from '../../engine/exporters.js';
-import { SegmentedControl, fmtTokens, fmtUSD } from '../common/ui.jsx';
+import { SegmentedControl, fmtTokens, fmtUSD, Tooltip } from '../common/ui.jsx';
 import { XP_MODE_INFO, xpMode, xpPace, xpFineTune, questsEnabled } from '../../engine/deeds.js';
 import XpPaceControls from '../common/XpPaceControls.jsx';
+import { help } from '../../config/helpTooltips.js';
 
 export default function Tab6Engine() {
   const campaign = useGameStore((s) => s.campaign);
@@ -33,7 +34,7 @@ export default function Tab6Engine() {
           <TrendingUp className="h-4 w-4" /> Progression
         </h3>
         <div>
-          <div className="label">Quests</div>
+          <div className="label"><Tooltip help={help('forge.quests')}>Quests</Tooltip></div>
           <SegmentedControl
             value={quests ? 'on' : 'off'}
             onChange={(v) => !locked && updateSettings({ 'meta.questsEnabled': v === 'on' })}
@@ -45,7 +46,7 @@ export default function Tab6Engine() {
           <p className="mt-1 text-[11px] text-muted">{quests ? 'The storyteller can offer quests and bounties; they appear in the Quests tab.' : 'No quests or bounties. The Quests tab is hidden and you set your own goals.'}</p>
         </div>
         <div>
-          <div className="label">Experience</div>
+          <div className="label"><Tooltip help={help('forge.xpMode')}>Experience</Tooltip></div>
           <SegmentedControl
             value={mode}
             onChange={(v) => {

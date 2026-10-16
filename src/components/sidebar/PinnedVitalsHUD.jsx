@@ -2,6 +2,8 @@ import { Heart, Shield, Footprints, Clock, CloudRain, Sun, CloudFog, Snowflake, 
 import { useGameStore } from '../../store/useGameStore.js';
 import { effectiveAc, effectiveMaxHp, effectiveSpeed, CONDITION_EFFECTS, fmtMod } from '../../engine/diceEngine.js';
 import { formatClock, timeOfDay } from '../../engine/clockWeatherEngine.js';
+import { Tooltip } from '../common/ui.jsx';
+import { help } from '../../config/helpTooltips.js';
 
 function weatherIcon(type = '') {
   const t = type.toLowerCase();
@@ -36,12 +38,16 @@ export default function PinnedVitalsHUD({ bare = false }) {
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="pill" title="Armor Class (incl. gear & perks)">
-            <Shield className="h-3 w-3" /> {effectiveAc(character)}
-          </span>
-          <span className="pill" title="Speed">
-            <Footprints className="h-3 w-3" /> {effectiveSpeed(character)}
-          </span>
+          <Tooltip help={help('stat.ac')}>
+            <span className="pill">
+              <Shield className="h-3 w-3" /> {effectiveAc(character)}
+            </span>
+          </Tooltip>
+          <Tooltip help={help('stat.speed')}>
+            <span className="pill">
+              <Footprints className="h-3 w-3" /> {effectiveSpeed(character)}
+            </span>
+          </Tooltip>
           <span className="pill" title={character.currency.label}>
             <Coins className="h-3 w-3 text-accent-2" /> {character.currency.amount}
           </span>
@@ -51,7 +57,7 @@ export default function PinnedVitalsHUD({ bare = false }) {
       <div className="mt-2">
         <div className="mb-0.5 flex items-center justify-between text-xs">
           <span className="flex items-center gap-1">
-            <Heart className="h-3 w-3 text-danger" /> HP
+            <Heart className="h-3 w-3 text-danger" /> <Tooltip help={help('stat.hp')}>HP</Tooltip>
           </span>
           <span className="font-mono">
             {v.hp}/{maxHp}
@@ -72,9 +78,9 @@ export default function PinnedVitalsHUD({ bare = false }) {
       {v.conditions?.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {v.conditions.map((c) => (
-            <span key={c} className="pill border-warning capitalize text-warning" title={CONDITION_EFFECTS[c]?.note || c}>
-              {c}
-            </span>
+            <Tooltip key={c} help={help(`condition.${c}`)} title={c} details={help(`condition.${c}`)?.details || CONDITION_EFFECTS[c]?.note || ''}>
+              <span className="pill border-warning capitalize text-warning">{c}</span>
+            </Tooltip>
           ))}
         </div>
       )}
