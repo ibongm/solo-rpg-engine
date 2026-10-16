@@ -13,3 +13,6 @@ emulator-data
 
 .vercel
 .env*
+
+# Local reference books (copyrighted, never published)
+docs/*.pdf
